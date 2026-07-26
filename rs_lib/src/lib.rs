@@ -1,4 +1,6 @@
 mod pow;
+mod seed;
+mod session;
 
 use wasm_bindgen::prelude::*;
 
