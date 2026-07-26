@@ -1,18 +1,18 @@
 use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 use subtle::{Choice, ConstantTimeEq};
-use zeroize::Zeroize;
+use wasm_bindgen::prelude::*;
 
-pub fn mine(seed: &[u8], n: u8) -> u128 {
+#[wasm_bindgen]
+pub fn pow_mine(seed: &[u8], n: u8) -> u128 {
     let mut nonce = 0u128;
 
     loop {
-        let mut candidate = nonce_hmac(seed, nonce);
+        let candidate = nonce_hmac(seed, nonce);
         let satisfied = check_candidate(&candidate, n);
 
         // Break the mining loop when the constraint is satisfied
         if bool::from(satisfied) {
-            candidate.zeroize();
             return nonce;
         }
 
@@ -20,11 +20,11 @@ pub fn mine(seed: &[u8], n: u8) -> u128 {
     }
 }
 
-pub fn verify(seed: &[u8], nonce: u128, n: u8) -> bool {
-    let mut candidate = nonce_hmac(seed, nonce);
+#[wasm_bindgen]
+pub fn pow_verify(seed: &[u8], nonce: u128, n: u8) -> bool {
+    let candidate = nonce_hmac(seed, nonce);
     let satisfied = check_candidate(&candidate, n);
 
-    candidate.zeroize();
     bool::from(satisfied)
 }
 
