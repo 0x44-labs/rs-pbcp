@@ -1,3 +1,4 @@
+mod errors;
 mod pow;
 mod seed;
 mod session;

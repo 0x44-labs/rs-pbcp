@@ -7,9 +7,7 @@ use crate::session::Grid;
 const T0: u64 = 0;
 
 #[wasm_bindgen]
-pub fn derive_seed(sid: &[u8], answer: &Grid, x: u64) -> Vec<u8> {
-    let step = time_step(x);
-
+pub fn derive_seed(sid: &[u8], answer: &Grid, step: u64) -> Vec<u8> {
     let mut hasher = Sha256::new();
     hasher.update(sid);
     hasher.update(answer.data());
