@@ -1,8 +1,6 @@
 use wasm_bindgen::prelude::*;
 
 use crate::errors::TlphError;
-use crate::pow::pow_verify;
-use crate::seed::{derive_seed, time_step};
 
 const PROOF_VERSION: u8 = 0x01;
 const PROOF_TAG_SID: u8 = 0x01;
@@ -12,83 +10,67 @@ const PROOF_TAG_NONCE: u8 = 0x03;
 #[wasm_bindgen]
 pub struct Session {
     sid: Vec<u8>,
-    constraint: u8,
-    similarity: f64,
-    step_width: u64,
-    step_count: u64,
-    start_step: u64,
     cid: Vec<u8>,
+    params: Params,
+    start_step: u64,
 }
 
+#[wasm_bindgen]
 impl Session {
+    #[wasm_bindgen(constructor)]
     pub fn new(
         sid: Vec<u8>,
-        n: u8,
-        s: f64,
-        x: u64,
-        l: u64,
         cid: Vec<u8>,
-    ) -> Result<Session, String> {
-        let start_step = time_step(x);
-
-        Ok(Session {
+        params: Params,
+        start_step: u64,
+    ) -> Session {
+        Session {
             sid,
-            constraint: n,
-            similarity: s,
-            step_width: x,
-            step_count: l,
-            start_step,
             cid,
-        })
+            params,
+            start_step,
+        }
     }
 
     pub fn sid(&self) -> Vec<u8> {
         self.sid.clone()
     }
 
-    pub fn pow_constraint(&self) -> u8 {
-        self.constraint
+    pub fn cid(&self) -> Vec<u8> {
+        self.cid.clone()
     }
 
-    pub fn similarity_threshold(&self) -> f64 {
-        self.similarity
-    }
-
-    pub fn step_width(&self) -> u64 {
-        self.step_width
-    }
-
-    pub fn step_count(&self) -> u64 {
-        self.step_count
+    pub fn params(&self) -> Params {
+        self.params.clone()
     }
 
     pub fn start_step(&self) -> u64 {
         self.start_step
     }
+}
 
-    pub fn cid(&self) -> Vec<u8> {
-        self.cid.clone()
-    }
+#[derive(Clone)]
+#[wasm_bindgen]
+pub struct Params {
+    /// PoW Constraint
+    pub n: u8,
+    /// Similarity Threshold
+    pub s: f64,
+    /// Time Step Width
+    pub x: u64,
+    /// Time Step Count
+    pub l: u64,
+}
 
-    pub fn valid_step_range(&self) -> Vec<u64> {
-        let current = time_step(self.step_width);
-        let max_step = self.start_step + self.step_count - 1;
-        let upper = current.min(max_step);
-        (self.start_step..=upper).collect()
-    }
-
-    pub fn verify_pow(&self, proof: &Proof) -> bool {
-        if proof.sid != self.sid {
-            return false;
-        }
-
-        self.valid_step_range().into_iter().any(|step| {
-            let seed = derive_seed(&self.sid, &proof.answer, step);
-            pow_verify(&seed, proof.nonce, self.constraint)
-        })
+#[wasm_bindgen]
+impl Params {
+    #[wasm_bindgen(constructor)]
+    pub fn new(n: u8, s: f64, x: u64, l: u64) -> Params {
+        Params { n, s, x, l }
     }
 }
 
+#[derive(Clone)]
 #[wasm_bindgen]
 pub struct Grid {
     size: usize,
@@ -141,6 +123,10 @@ impl Proof {
 
     pub fn sid(&self) -> Vec<u8> {
         self.sid.clone()
+    }
+
+    pub fn answer(&self) -> Grid {
+        self.answer.clone()
     }
 
     pub fn nonce(&self) -> u128 {
