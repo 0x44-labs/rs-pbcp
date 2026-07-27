@@ -1,8 +1,1 @@
-import { add, Greeter } from "./lib/rs_lib.js";
-
-// adds
-console.log(add(1, 1));
-
-// greets
-const greeter = new Greeter("world");
-console.log(greeter.greet());
+export { start_session, load_session, build_proof, valid_step_range, verify_proof } from "./lib/rs_lib.js";
