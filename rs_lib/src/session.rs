@@ -1,11 +1,93 @@
 use wasm_bindgen::prelude::*;
 
 use crate::errors::TlphError;
+use crate::pow::pow_verify;
+use crate::seed::{derive_seed, time_step};
 
 const PROOF_VERSION: u8 = 0x01;
 const PROOF_TAG_SID: u8 = 0x01;
 const PROOF_TAG_ANSWER: u8 = 0x02;
 const PROOF_TAG_NONCE: u8 = 0x03;
+
+#[wasm_bindgen]
+pub struct Session {
+    sid: Vec<u8>,
+    constraint: u8,
+    similarity: f64,
+    step_width: u64,
+    step_count: u64,
+    start_step: u64,
+    cid: Vec<u8>,
+}
+
+impl Session {
+    pub fn new(
+        sid: Vec<u8>,
+        n: u8,
+        s: f64,
+        x: u64,
+        l: u64,
+        cid: Vec<u8>,
+    ) -> Result<Session, String> {
+        let start_step = time_step(x);
+
+        Ok(Session {
+            sid,
+            constraint: n,
+            similarity: s,
+            step_width: x,
+            step_count: l,
+            start_step,
+            cid,
+        })
+    }
+
+    pub fn sid(&self) -> Vec<u8> {
+        self.sid.clone()
+    }
+
+    pub fn pow_constraint(&self) -> u8 {
+        self.constraint
+    }
+
+    pub fn similarity_threshold(&self) -> f64 {
+        self.similarity
+    }
+
+    pub fn step_width(&self) -> u64 {
+        self.step_width
+    }
+
+    pub fn step_count(&self) -> u64 {
+        self.step_count
+    }
+
+    pub fn start_step(&self) -> u64 {
+        self.start_step
+    }
+
+    pub fn cid(&self) -> Vec<u8> {
+        self.cid.clone()
+    }
+
+    pub fn valid_step_range(&self) -> Vec<u64> {
+        let current = time_step(self.step_width);
+        let max_step = self.start_step + self.step_count - 1;
+        let upper = current.min(max_step);
+        (self.start_step..=upper).collect()
+    }
+
+    pub fn verify_pow(&self, proof: &Proof) -> bool {
+        if proof.sid != self.sid {
+            return false;
+        }
+
+        self.valid_step_range().into_iter().any(|step| {
+            let seed = derive_seed(&self.sid, &proof.answer, step);
+            pow_verify(&seed, proof.nonce, self.constraint)
+        })
+    }
+}
 
 #[wasm_bindgen]
 pub struct Grid {
