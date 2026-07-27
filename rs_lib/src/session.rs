@@ -79,7 +79,6 @@ pub struct Grid {
 
 #[wasm_bindgen]
 impl Grid {
-    #[wasm_bindgen(constructor)]
     pub fn new(size: usize, data: &[u8]) -> Option<Grid> {
         (data.len() == size * size).then_some(Self {
             size,
