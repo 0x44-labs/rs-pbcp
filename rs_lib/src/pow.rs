@@ -1,9 +1,7 @@
 use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 use subtle::{Choice, ConstantTimeEq};
-use wasm_bindgen::prelude::*;
 
-#[wasm_bindgen]
 pub fn pow_mine(seed: &[u8], n: u8) -> u128 {
     let mut nonce = 0u128;
 
@@ -20,7 +18,6 @@ pub fn pow_mine(seed: &[u8], n: u8) -> u128 {
     }
 }
 
-#[wasm_bindgen]
 pub fn pow_verify(seed: &[u8], nonce: u128, n: u8) -> bool {
     let candidate = nonce_hmac(seed, nonce);
     let satisfied = check_candidate(&candidate, n);
