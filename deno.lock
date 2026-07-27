@@ -16,7 +16,8 @@
     "jsr:@std/path@1": "1.1.2",
     "jsr:@std/path@^1.1.1": "1.1.2",
     "jsr:@std/streams@^1.0.17": "1.1.1",
-    "jsr:@std/tar@~0.1.4": "0.1.10"
+    "jsr:@std/tar@~0.1.4": "0.1.10",
+    "npm:@scure/base@2.2.0": "2.2.0"
   },
   "jsr": {
     "@david/path@0.2.0": {
@@ -85,10 +86,16 @@
       ]
     }
   },
+  "npm": {
+    "@scure/base@2.2.0": {
+      "integrity": "sha512-b8XEupJibegiXV+tDUseI8oLQc8ei3d/4Jkb2RpbHh3MfE054ov3uIz2dhFkB3FI8iwYkEh0gGCApkrYggkPNg=="
+    }
+  },
   "workspace": {
     "dependencies": [
       "jsr:@deno/wasmbuild@0.22.0",
-      "jsr:@std/assert@1.0.19"
+      "jsr:@std/assert@1.0.19",
+      "npm:@scure/base@2.2.0"
     ]
   }
 }
