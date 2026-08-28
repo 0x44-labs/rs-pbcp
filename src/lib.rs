@@ -1,5 +1,6 @@
 mod errors;
 mod pow;
+mod proof;
 mod session;
 
 use crate::pow::{mine, verify};
