@@ -3,13 +3,10 @@ mod pow;
 mod seed;
 mod session;
 
-use wasm_bindgen::prelude::*;
-
 use crate::pow::{pow_mine, pow_verify};
 use crate::seed::{derive_seed, time_step};
 use crate::session::{Grid, Params, Proof, Session};
 
-#[wasm_bindgen]
 pub fn start_session(
     sid: Vec<u8>,
     n: u8,
@@ -24,7 +21,6 @@ pub fn start_session(
     Session::new(sid, cid, params, start_step)
 }
 
-#[wasm_bindgen]
 pub fn load_session(
     sid: Vec<u8>,
     n: u8,
@@ -38,7 +34,6 @@ pub fn load_session(
     Session::new(sid, cid, params, start_step)
 }
 
-#[wasm_bindgen]
 pub fn build_proof(session: &Session, answer: Grid) -> Proof {
     let step = time_step(session.params().x);
 
@@ -48,7 +43,6 @@ pub fn build_proof(session: &Session, answer: Grid) -> Proof {
     Proof::new(session.sid(), answer, nonce)
 }
 
-#[wasm_bindgen]
 pub fn valid_step_range(session: &Session) -> Vec<u64> {
     let current = time_step(session.params().x);
     let max_step = session.start_step() + session.params().l - 1;
@@ -56,7 +50,6 @@ pub fn valid_step_range(session: &Session) -> Vec<u64> {
     (session.start_step()..=upper).collect()
 }
 
-#[wasm_bindgen]
 pub fn verify_proof(session: &Session, proof: &Proof) -> bool {
     if proof.sid() != session.sid() {
         return false;

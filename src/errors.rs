@@ -1,5 +1,3 @@
-use wasm_bindgen::{JsError, JsValue};
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TlphError {
     Truncated,
@@ -16,9 +14,3 @@ impl std::fmt::Display for TlphError {
 }
 
 impl std::error::Error for TlphError {}
-
-impl From<TlphError> for JsValue {
-    fn from(value: TlphError) -> Self {
-        JsError::from(value).into()
-    }
-}

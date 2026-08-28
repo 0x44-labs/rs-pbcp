@@ -1,5 +1,3 @@
-use wasm_bindgen::prelude::*;
-
 use crate::errors::TlphError;
 
 const PROOF_VERSION: u8 = 0x01;
@@ -7,7 +5,6 @@ const PROOF_TAG_SID: u8 = 0x01;
 const PROOF_TAG_ANSWER: u8 = 0x02;
 const PROOF_TAG_NONCE: u8 = 0x03;
 
-#[wasm_bindgen]
 pub struct Session {
     sid: Vec<u8>,
     cid: Vec<u8>,
@@ -15,9 +12,7 @@ pub struct Session {
     start_step: u64,
 }
 
-#[wasm_bindgen]
 impl Session {
-    #[wasm_bindgen(constructor)]
     pub fn new(
         sid: Vec<u8>,
         cid: Vec<u8>,
@@ -50,7 +45,6 @@ impl Session {
 }
 
 #[derive(Clone)]
-#[wasm_bindgen]
 pub struct Params {
     /// PoW Constraint
     pub n: u8,
@@ -62,22 +56,18 @@ pub struct Params {
     pub l: u64,
 }
 
-#[wasm_bindgen]
 impl Params {
-    #[wasm_bindgen(constructor)]
     pub fn new(n: u8, s: f64, x: u64, l: u64) -> Params {
         Params { n, s, x, l }
     }
 }
 
 #[derive(Clone)]
-#[wasm_bindgen]
 pub struct Grid {
     size: usize,
     inner: Vec<u8>,
 }
 
-#[wasm_bindgen]
 impl Grid {
     pub fn new(size: usize, data: &[u8]) -> Option<Grid> {
         (data.len() == size * size).then_some(Self {
@@ -106,16 +96,13 @@ impl Grid {
     }
 }
 
-#[wasm_bindgen]
 pub struct Proof {
     sid: Vec<u8>,
     answer: Grid,
     nonce: u128,
 }
 
-#[wasm_bindgen]
 impl Proof {
-    #[wasm_bindgen(constructor)]
     pub fn new(sid: Vec<u8>, answer: Grid, nonce: u128) -> Proof {
         Proof { sid, answer, nonce }
     }
