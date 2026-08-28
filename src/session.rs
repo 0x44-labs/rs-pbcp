@@ -1,5 +1,8 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use crate::errors::TlphError;
 
+const T0: u64 = 0;
 const PROOF_VERSION: u8 = 0x01;
 const PROOF_TAG_SID: u8 = 0x01;
 const PROOF_TAG_ANSWER: u8 = 0x02;
@@ -196,4 +199,13 @@ impl Proof {
         let (value, rest) = rest.split_at(len);
         Ok((tag, value, rest))
     }
+}
+
+pub fn time_step(x: u64) -> u64 {
+    let current_unix_time = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system time before Unix epoch")
+        .as_secs();
+
+    (current_unix_time - T0) / x
 }

@@ -1,10 +1,8 @@
 mod errors;
 mod pow;
-mod seed;
 mod session;
 
 use crate::pow::{mine, verify};
-use crate::seed::{derive_seed, time_step};
 use crate::session::{Grid, Params, Proof, Session};
 
 pub fn start_session(
