@@ -3,7 +3,7 @@ mod pow;
 mod seed;
 mod session;
 
-use crate::pow::{pow_mine, pow_verify};
+use crate::pow::{mine, verify};
 use crate::seed::{derive_seed, time_step};
 use crate::session::{Grid, Params, Proof, Session};
 
@@ -38,7 +38,7 @@ pub fn build_proof(session: &Session, answer: Grid) -> Proof {
     let step = time_step(session.params().x);
 
     let seed = derive_seed(&session.sid(), &answer, step);
-    let nonce = pow_mine(&seed, session.params().n);
+    let nonce = mine(&seed, session.params().n);
 
     Proof::new(session.sid(), answer, nonce)
 }
@@ -57,6 +57,6 @@ pub fn verify_proof(session: &Session, proof: &Proof) -> bool {
 
     valid_step_range(session).into_iter().any(|step| {
         let seed = derive_seed(&session.sid(), &proof.answer(), step);
-        pow_verify(&seed, proof.nonce(), session.params().n)
+        verify(&seed, proof.nonce(), session.params().n)
     })
 }
