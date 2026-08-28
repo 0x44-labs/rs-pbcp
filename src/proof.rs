@@ -7,12 +7,12 @@ const PROOF_TAG_NONCE: u8 = 0x03;
 
 pub struct Proof {
     sid: Vec<u8>,
-    answer: Grid,
+    answer: Solution,
     nonce: u128,
 }
 
 impl Proof {
-    pub fn new(sid: Vec<u8>, answer: Grid, nonce: u128) -> Proof {
+    pub fn new(sid: Vec<u8>, answer: Solution, nonce: u128) -> Proof {
         Proof { sid, answer, nonce }
     }
 
@@ -20,7 +20,7 @@ impl Proof {
         self.sid.clone()
     }
 
-    pub fn answer(&self) -> Grid {
+    pub fn answer(&self) -> Solution {
         self.answer.clone()
     }
 
@@ -61,8 +61,8 @@ impl Proof {
             });
         }
         let side = (answer_bytes.len() as f64).sqrt() as usize;
-        let answer =
-            Grid::new(side, answer_bytes).ok_or(TlphError::InvalidAnswer)?;
+        let answer = Solution::new(side, answer_bytes)
+            .ok_or(TlphError::InvalidAnswer)?;
 
         let (tag, nonce_bytes, _rest) = Self::read(rest)?;
         if tag != PROOF_TAG_NONCE {
@@ -108,13 +108,13 @@ impl Proof {
 }
 
 #[derive(Clone)]
-pub struct Grid {
+pub struct Solution {
     size: usize,
     inner: Vec<u8>,
 }
 
-impl Grid {
-    pub fn new(size: usize, data: &[u8]) -> Option<Grid> {
+impl Solution {
+    pub fn new(size: usize, data: &[u8]) -> Option<Solution> {
         (data.len() == size * size).then_some(Self {
             size,
             inner: data.to_vec(),

@@ -2,9 +2,10 @@ use hmac::{Hmac, KeyInit, Mac};
 use sha2::{Digest, Sha256};
 use subtle::{Choice, ConstantTimeEq};
 
-use crate::session::{Grid, time_step};
+use crate::proof::Solution;
+use crate::session::time_step;
 
-pub fn mine(session_id: &[u8], solution: &Grid, x: u64, n: u8) -> u128 {
+pub fn mine(session_id: &[u8], solution: &Solution, x: u64, n: u8) -> u128 {
     let mut nonce = 0u128;
 
     let step = time_step(x);
@@ -32,7 +33,7 @@ pub fn verify(seed: &[u8; 32], nonce: u128, n: u8) -> bool {
 }
 */
 
-fn derive_seed(session_id: &[u8], solution: &Grid, step: u64) -> [u8; 32] {
+fn derive_seed(session_id: &[u8], solution: &Solution, step: u64) -> [u8; 32] {
     let mut hasher = Sha256::new();
     hasher.update(session_id);
     hasher.update(solution.data());
