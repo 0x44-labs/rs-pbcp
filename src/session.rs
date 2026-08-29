@@ -45,18 +45,30 @@ impl Session {
 #[derive(Clone)]
 pub struct Params {
     /// PoW Constraint
-    pub n: u8,
-    /// Similarity Threshold
-    pub s: f64,
+    n: u8,
+
     /// Time Step Width
-    pub x: u64,
+    x: u64,
+
     /// Time Step Count
-    pub l: u64,
+    l: u64,
 }
 
 impl Params {
-    pub fn new(n: u8, s: f64, x: u64, l: u64) -> Params {
-        Params { n, s, x, l }
+    pub fn new(n: u8, x: u64, l: u64) -> Params {
+        Params { n, x, l }
+    }
+
+    pub const fn n(&self) -> u8 {
+        self.n
+    }
+
+    pub const fn x(&self) -> u64 {
+        self.x
+    }
+
+    pub const fn l(&self) -> u64 {
+        self.l
     }
 }
 
