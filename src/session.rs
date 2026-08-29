@@ -1,21 +1,20 @@
 use std::time::{SystemTime, UNIX_EPOCH};
+use ulid::Ulid;
 
 const T0: u64 = 0;
 
 pub struct Session {
-    session_id: Vec<u8>,
+    session_id: Ulid,
     challenge_id: Vec<u8>,
-    params: Params,
     start_step: u64,
+    params: Params,
 }
 
 impl Session {
-    pub fn new(
-        session_id: Vec<u8>,
-        challenge_id: Vec<u8>,
-        params: Params,
-        start_step: u64,
-    ) -> Session {
+    pub fn new(challenge_id: Vec<u8>, params: Params) -> Session {
+        let session_id = Ulid::generate();
+        let start_step = time_step(params.x);
+
         Session {
             session_id,
             challenge_id,
@@ -24,6 +23,7 @@ impl Session {
         }
     }
 
+    /*
     pub fn session_id(&self) -> Vec<u8> {
         self.session_id.clone()
     }
@@ -39,6 +39,7 @@ impl Session {
     pub fn start_step(&self) -> u64 {
         self.start_step
     }
+    */
 }
 
 #[derive(Clone)]
