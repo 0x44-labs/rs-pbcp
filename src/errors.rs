@@ -1,7 +1,9 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TlphError {
-    InvalidByteLength,
-    NotSquare,
+    GridTooSmall,
+    GridNotSquare,
+
+    IncompatibleByteLen,
 
     Truncated,
     UnsupportedVersion(u8),

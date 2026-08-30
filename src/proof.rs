@@ -38,8 +38,18 @@ pub struct Grid<T> {
 }
 
 impl<T: Copy + ToBytes + FromBytes> Grid<T> {
-    pub fn new(size: usize, data: &[T]) -> Option<Grid<T>> {
-        (data.len() == size * size).then_some(Self {
+    const MIN_SIZE: usize = 2;
+
+    pub fn new(size: usize, data: &[T]) -> Result<Grid<T>, TlphError> {
+        if size < Self::MIN_SIZE {
+            return Err(TlphError::GridTooSmall);
+        }
+
+        if data.len() == size * size {
+            return Err(TlphError::GridNotSquare);
+        }
+
+        Ok(Self {
             size,
             inner: data.to_vec(),
         })
@@ -75,24 +85,20 @@ where
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
         let num_size = std::mem::size_of::<T>();
         if num_size == 0 || value.len() % num_size != 0 {
-            return Err(Self::Error::InvalidByteLength);
+            return Err(Self::Error::IncompatibleByteLen);
         }
 
         let values: Vec<T> = value
             .chunks_exact(num_size)
             .map(|chunk| {
                 let arr = <T as FromBytes>::Bytes::try_from(chunk)
-                    .map_err(|_| Self::Error::InvalidByteLength)?;
+                    .map_err(|_| Self::Error::IncompatibleByteLen)?;
                 Ok(T::from_le_bytes(&arr))
             })
             .collect::<Result<Vec<T>, Self::Error>>()?;
-
         let size = (values.len() as f64).sqrt().round() as usize;
-        if size * size != values.len() {
-            return Err(Self::Error::NotSquare);
-        }
 
-        Grid::new(size, &values).ok_or(Self::Error::NotSquare)
+        Grid::new(size, &values)
     }
 }
 
