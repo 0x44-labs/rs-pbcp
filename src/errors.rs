@@ -4,6 +4,7 @@ pub enum TlphError {
     GridNotSquare,
 
     IncompatibleByteLen,
+    ProofTooSmall,
 
     Truncated,
     UnsupportedVersion(u8),

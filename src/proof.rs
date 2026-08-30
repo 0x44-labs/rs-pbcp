@@ -31,6 +31,42 @@ impl<T: Copy + ToBytes + FromBytes> Proof<T> {
     }
 }
 
+impl<T> TryFrom<&[u8]> for Proof<T>
+where
+    T: Copy + ToBytes + FromBytes,
+    for<'a> <T as FromBytes>::Bytes: TryFrom<&'a [u8]>,
+{
+    type Error = TlphError;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        if value.len() < 36 {
+            return Err(Self::Error::ProofTooSmall);
+        }
+
+        let mut id_bytes = [0u8; 16];
+        id_bytes.copy_from_slice(&value[..16]);
+        let id = Ulid::from(id_bytes);
+
+        let mut nonce_bytes = [0u8; 16];
+        nonce_bytes.copy_from_slice(&value[16..32]);
+        let nonce = u128::from_le_bytes(nonce_bytes);
+
+        let solution = Grid::try_from(&value[32..])?;
+
+        Ok(Proof::new(id, nonce, solution))
+    }
+}
+
+impl<T: Copy + ToBytes + FromBytes> From<Proof<T>> for Vec<u8> {
+    fn from(value: Proof<T>) -> Self {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&value.id.to_bytes());
+        bytes.extend_from_slice(&value.nonce.to_le_bytes());
+        bytes.extend(Vec::from(value.solution));
+        bytes
+    }
+}
+
 #[derive(Clone)]
 pub struct Grid<T> {
     size: usize,
@@ -75,14 +111,14 @@ impl<T: Copy + ToBytes + FromBytes> Grid<T> {
     }
 }
 
-impl<T> TryFrom<Vec<u8>> for Grid<T>
+impl<T> TryFrom<&[u8]> for Grid<T>
 where
     T: Copy + ToBytes + FromBytes,
     for<'a> <T as FromBytes>::Bytes: TryFrom<&'a [u8]>,
 {
     type Error = TlphError;
 
-    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         let num_size = std::mem::size_of::<T>();
         if num_size == 0 || value.len() % num_size != 0 {
             return Err(Self::Error::IncompatibleByteLen);
