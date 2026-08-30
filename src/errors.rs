@@ -1,5 +1,8 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TlphError {
+    InvalidByteLength,
+    NotSquare,
+
     Truncated,
     UnsupportedVersion(u8),
     UnexpectedTag { expected: u8, found: u8 },
