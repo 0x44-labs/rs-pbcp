@@ -1,8 +1,6 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 use ulid::Ulid;
 
-const T0: u64 = 0;
-
 pub struct Session {
     session_id: Ulid,
     challenge_id: Vec<u8>,
@@ -13,7 +11,7 @@ pub struct Session {
 impl Session {
     pub fn new(challenge_id: Vec<u8>, params: Params) -> Session {
         let session_id = Ulid::generate();
-        let start_step = time_step(params.x);
+        let start_step = params.time_step();
 
         Session {
             session_id,
@@ -52,11 +50,21 @@ pub struct Params {
 
     /// Time Step Count
     l: u64,
+
+    /// Unix time from which to start counting time steps.
+    t0: u64,
 }
 
 impl Params {
-    pub fn new(n: u8, x: u64, l: u64) -> Params {
-        Params { n, x, l }
+    pub const DEFAULT_T0: u64 = 0;
+
+    pub fn new(n: u8, x: u64, l: u64, t0: Option<u64>) -> Params {
+        Params {
+            n,
+            x,
+            l,
+            t0: t0.unwrap_or(Self::DEFAULT_T0),
+        }
     }
 
     pub const fn n(&self) -> u8 {
@@ -70,13 +78,14 @@ impl Params {
     pub const fn l(&self) -> u64 {
         self.l
     }
-}
 
-pub fn time_step(x: u64) -> u64 {
-    let current_unix_time = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("system time before Unix epoch")
-        .as_secs();
+    /// Returns the current time step.
+    pub fn time_step(&self) -> u64 {
+        let current_unix_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time before Unix epoch")
+            .as_secs();
 
-    (current_unix_time - T0) / x
+        (current_unix_time - self.t0) / self.x
+    }
 }
