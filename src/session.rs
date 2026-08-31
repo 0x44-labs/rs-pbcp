@@ -11,7 +11,7 @@ pub struct Session {
 impl Session {
     pub fn new(challenge_id: Vec<u8>, params: Params) -> Session {
         let session_id = Ulid::generate();
-        let start_step = params.time_step();
+        let start_step = params.time_step(None);
 
         Session {
             session_id,
@@ -79,13 +79,15 @@ impl Params {
         self.l
     }
 
-    /// Returns the current time step.
-    pub fn time_step(&self) -> u64 {
-        let current_unix_time = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("system time before Unix epoch")
-            .as_secs();
+    /// Returns the time step for a specified or the current time.
+    pub fn time_step(&self, time: Option<u64>) -> u64 {
+        let unix_time = time.unwrap_or_else(|| {
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("system time before Unix epoch")
+                .as_secs()
+        });
 
-        (current_unix_time - self.t0) / self.x
+        (unix_time - self.t0) / self.x
     }
 }
