@@ -121,14 +121,14 @@ where
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         let num_size = std::mem::size_of::<T>();
         if num_size == 0 || value.len() % num_size != 0 {
-            return Err(Self::Error::IncompatibleByteLen);
+            return Err(Self::Error::GridWrongSize);
         }
 
         let values: Vec<T> = value
             .chunks_exact(num_size)
             .map(|chunk| {
                 let arr = <T as FromBytes>::Bytes::try_from(chunk)
-                    .map_err(|_| Self::Error::IncompatibleByteLen)?;
+                    .map_err(|_| Self::Error::GridWrongSize)?;
                 Ok(T::from_le_bytes(&arr))
             })
             .collect::<Result<Vec<T>, Self::Error>>()?;
