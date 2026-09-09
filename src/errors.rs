@@ -5,12 +5,6 @@ pub enum TlphError {
 
     IncompatibleByteLen,
     ProofTooSmall,
-
-    Truncated,
-    UnsupportedVersion(u8),
-    UnexpectedTag { expected: u8, found: u8 },
-    InvalidAnswer,
-    InvalidNonce,
 }
 
 impl std::fmt::Display for TlphError {
