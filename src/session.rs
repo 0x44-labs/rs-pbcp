@@ -9,11 +9,22 @@ pub struct Session {
 }
 
 impl Session {
-    pub fn new(challenge: Vec<u8>, params: Params) -> Session {
+    pub fn new(challenge: Vec<u8>, params: Params) -> Self {
         let id = Ulid::generate();
         let start_step = params.time_step(None);
 
-        Session {
+        Self {
+            id,
+            challenge,
+            params,
+            start_step,
+        }
+    }
+
+    pub fn new_from(id: Ulid, challenge: Vec<u8>, params: Params) -> Self {
+        let start_step = params.time_step(None);
+
+        Self {
             id,
             challenge,
             params,
