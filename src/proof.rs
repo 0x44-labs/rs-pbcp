@@ -1,4 +1,6 @@
 use num_traits::{FromBytes, ToBytes};
+use serde::{Deserialize, Serialize};
+use std::marker::PhantomData;
 use traversev::{Params, TraverseV};
 use ulid::Ulid;
 
@@ -59,7 +61,49 @@ impl<T: Copy + ToBytes + FromBytes> From<Proof<T>> for Vec<u8> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
+pub struct Solution<T> {
+    step: u64,
+    grid: Vec<u8>,
+    #[serde(skip)]
+    _marker: PhantomData<T>,
+}
+
+impl Solution<T>
+where
+    T: Copy + ToBytes + FromBytes + Serialize + for<'de> Deserialize<'de>,
+    for<'a> <T as FromBytes>::Bytes: TryFrom<&'a [u8]>,
+{
+    pub fn new(step: u64, grid: Grid<T>) -> Self {
+        Self {
+            step,
+            grid: grid.into(),
+            _marker: PhantomData,
+        }
+    }
+
+    pub fn grid(&self) -> Result<Grid<T>, TlphError> {
+        Grid::<T>::try_from(self.grid.as_slice())
+    }
+
+    pub fn to_json(&self) -> Result<String, serde_json::Error> {
+        serde_json::to_string(self)
+    }
+
+    pub fn from_json(json: &str) -> Result<Self, serde_json::Error> {
+        serde_json::from_str(json)
+    }
+
+    pub fn to_bytes(&self) -> Result<Vec<u8>, bincode::Error> {
+        bincode::serialize(self)
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, bincode::Error> {
+        bincode::deserialize(bytes)
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Grid<T> {
     size: usize,
     inner: Vec<T>,
