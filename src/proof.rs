@@ -1,33 +1,25 @@
 use num_traits::{FromBytes, ToBytes};
+use traversev::{Params, TraverseV};
 use ulid::Ulid;
 
 use crate::errors::TlphError;
 
 pub struct Proof<T> {
-    id: Ulid,
-    nonce: u128,
+    proof: u128,
     solution: Grid<T>,
 }
 
 impl<T: Copy + ToBytes + FromBytes> Proof<T> {
-    pub fn new(id: Ulid, nonce: u128, solution: Grid<T>) -> Proof<T> {
-        Proof {
-            id,
-            nonce,
-            solution,
-        }
-    }
+    const CONTEXT: &str = "TLPH-PROOF";
 
-    pub fn id(&self) -> Ulid {
-        self.id.clone()
-    }
+    pub fn new(id: Ulid, solution: Grid<T>, params: Params) -> Self {
+        let secret = id.to_bytes();
+        let tv = TraverseV::new_permissioned(&secret, Self::CONTEXT, params);
 
-    pub const fn nonce(&self) -> u128 {
-        self.nonce
-    }
+        let input = Vec::from(solution.clone());
+        let proof = tv.mine(&input);
 
-    pub fn solution(&self) -> Grid<T> {
-        self.solution.clone()
+        Self { proof, solution }
     }
 }
 
