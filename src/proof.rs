@@ -8,23 +8,28 @@ use crate::errors::TlphError;
 
 pub struct Proof<T> {
     proof: u128,
-    solution: Grid<T>,
+    solution: Solution<T>,
 }
 
-impl<T: Copy + ToBytes + FromBytes> Proof<T> {
+impl<T> Proof<T>
+where
+    T: Copy + ToBytes + FromBytes + Serialize + for<'de> Deserialize<'de>,
+    for<'a> <T as FromBytes>::Bytes: TryFrom<&'a [u8]>,
+{
     const CONTEXT: &str = "TLPH-PROOF";
 
-    pub fn new(id: Ulid, solution: Grid<T>, params: Params) -> Self {
+    pub fn new(id: Ulid, solution: Solution<T>, params: Params) -> Self {
         let secret = id.to_bytes();
         let tv = TraverseV::new_permissioned(&secret, Self::CONTEXT, params);
 
-        let input = Vec::from(solution.clone());
+        let input = solution.to_bytes().expect("serialisation should not fail");
         let proof = tv.mine(&input);
 
         Self { proof, solution }
     }
 }
 
+/*
 impl<T> TryFrom<&[u8]> for Proof<T>
 where
     T: Copy + ToBytes + FromBytes,
@@ -60,6 +65,7 @@ impl<T: Copy + ToBytes + FromBytes> From<Proof<T>> for Vec<u8> {
         bytes
     }
 }
+*/
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Solution<T> {
@@ -69,7 +75,7 @@ pub struct Solution<T> {
     _marker: PhantomData<T>,
 }
 
-impl Solution<T>
+impl<T> Solution<T>
 where
     T: Copy + ToBytes + FromBytes + Serialize + for<'de> Deserialize<'de>,
     for<'a> <T as FromBytes>::Bytes: TryFrom<&'a [u8]>,
@@ -94,12 +100,12 @@ where
         serde_json::from_str(json)
     }
 
-    pub fn to_bytes(&self) -> Result<Vec<u8>, bincode::Error> {
-        bincode::serialize(self)
+    pub fn to_bytes(&self) -> Result<Vec<u8>, postcard::Error> {
+        postcard::to_allocvec(self)
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, bincode::Error> {
-        bincode::deserialize(bytes)
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, postcard::Error> {
+        postcard::from_bytes(bytes)
     }
 }
 
