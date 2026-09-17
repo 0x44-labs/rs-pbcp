@@ -123,7 +123,7 @@ impl<T: Copy + ToBytes + FromBytes> Grid<T> {
             return Err(TlphError::GridTooSmall);
         }
 
-        if data.len() == size * size {
+        if data.len() != size * size {
             return Err(TlphError::GridNotSquare);
         }
 
