@@ -1,5 +1,4 @@
 mod errors;
-mod pow;
 mod proof;
 mod session;
 
