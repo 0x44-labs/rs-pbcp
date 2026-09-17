@@ -29,43 +29,46 @@ where
     }
 }
 
-/*
 impl<T> TryFrom<&[u8]> for Proof<T>
 where
-    T: Copy + ToBytes + FromBytes,
+    T: Copy + ToBytes + FromBytes + Serialize + for<'de> Deserialize<'de>,
     for<'a> <T as FromBytes>::Bytes: TryFrom<&'a [u8]>,
 {
     type Error = TlphError;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        if value.len() < 36 {
+        if value.len() < 22 {
             return Err(Self::Error::ProofTooSmall);
         }
 
-        let mut id_bytes = [0u8; 16];
-        id_bytes.copy_from_slice(&value[..16]);
-        let id = Ulid::from(id_bytes);
+        let mut proof_bytes = [0u8; 16];
+        proof_bytes.copy_from_slice(&value[..16]);
+        let proof = u128::from_le_bytes(proof_bytes);
 
-        let mut nonce_bytes = [0u8; 16];
-        nonce_bytes.copy_from_slice(&value[16..32]);
-        let nonce = u128::from_le_bytes(nonce_bytes);
+        let solution = Solution::<T>::from_bytes(&value[16..])
+            .map_err(|_| Self::Error::ProofTooSmall)?;
 
-        let solution = Grid::try_from(&value[32..])?;
-
-        Ok(Proof::new(id, nonce, solution))
+        Ok(Self { proof, solution })
     }
 }
 
-impl<T: Copy + ToBytes + FromBytes> From<Proof<T>> for Vec<u8> {
+impl<T> From<Proof<T>> for Vec<u8>
+where
+    T: Copy + ToBytes + FromBytes + Serialize + for<'de> Deserialize<'de>,
+    for<'a> <T as FromBytes>::Bytes: TryFrom<&'a [u8]>,
+{
     fn from(value: Proof<T>) -> Self {
         let mut bytes = Vec::new();
-        bytes.extend_from_slice(&value.id.to_bytes());
-        bytes.extend_from_slice(&value.nonce.to_le_bytes());
-        bytes.extend(Vec::from(value.solution));
+        bytes.extend_from_slice(&value.proof.to_le_bytes());
+        bytes.extend(
+            value
+                .solution
+                .to_bytes()
+                .expect("serialisation should not fail"),
+        );
         bytes
     }
 }
-*/
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Solution<T> {
