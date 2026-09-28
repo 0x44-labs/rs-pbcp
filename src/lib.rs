@@ -2,8 +2,34 @@ mod errors;
 mod proof;
 mod session;
 
-use crate::pow::{mine, verify};
-use crate::session::{Grid, Params, Proof, Session};
+use ulid::Ulid;
+
+use crate::proof::{Grid, Proof, Solution};
+use crate::session::{Params, Session};
+
+pub struct Tlph {
+    id: Ulid,
+    session: Session,
+}
+
+impl Tlph {
+    pub fn new(challenge: Vec<u8>, params: &Params) -> Self {
+        let id = Ulid::generate();
+        let session = Session::new(challenge, params);
+
+        Self { id, session }
+    }
+
+    pub fn new_from(id: Ulid, challenge: Vec<u8>, params: &Params) -> Self {
+        let session = Session::new(challenge, params);
+
+        Self { id, session }
+    }
+
+    pub fn id(&self) -> Ulid {
+        self.id.clone()
+    }
+}
 
 pub fn start_session(
     sid: Vec<u8>,
