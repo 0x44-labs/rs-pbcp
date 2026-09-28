@@ -21,7 +21,7 @@ where
     T: Copy + ToBytes + FromBytes,
     for<'a> <T as FromBytes>::Bytes: TryFrom<&'a [u8]>,
 {
-    pub fn new(step: u64, grid: Grid<T>) -> SolutionBuilder<T> {
+    pub fn builder(step: u64, grid: Grid<T>) -> SolutionBuilder<T> {
         SolutionBuilder::new(step, grid)
     }
 
