@@ -78,6 +78,16 @@ where
         Proof::new(proof, step, grid)
     }
 
+    pub fn verify(&self, proof: Proof<T>) -> bool {
+        let mut input: Vec<u8> = Vec::new();
+        input.extend_from_slice(&proof.step().to_le_bytes());
+
+        let grid_bytes = Vec::<u8>::from(proof.grid());
+        input.extend_from_slice(&grid_bytes);
+
+        self.tv.verify(&input, proof.proof())
+    }
+
     pub fn id(&self) -> Ulid {
         self.id.clone()
     }
