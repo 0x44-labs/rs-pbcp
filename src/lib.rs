@@ -1,6 +1,7 @@
 mod errors;
 mod params;
 mod proof;
+mod solution;
 
 use blake3::Hasher;
 use num_traits::{FromBytes, ToBytes};
