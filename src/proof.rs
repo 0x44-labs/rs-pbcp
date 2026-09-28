@@ -1,6 +1,4 @@
 use num_traits::{FromBytes, ToBytes};
-use serde::{Deserialize, Serialize};
-use std::marker::PhantomData;
 use traversev::TraverseV;
 use ulid::Ulid;
 
@@ -15,22 +13,20 @@ pub struct Proof<T> {
 
 impl<T> Proof<T>
 where
-    T: Copy + ToBytes + FromBytes + Serialize + for<'de> Deserialize<'de>,
+    T: Copy + ToBytes + FromBytes,
     for<'a> <T as FromBytes>::Bytes: TryFrom<&'a [u8]>,
 {
     const CONTEXT: &str = "TLPH-PROOF";
 
-    /*
-    pub fn new(id: Ulid, grid: Grid<T>, params: TvParams) -> Self {
+    pub fn new(id: Ulid, step: u64, grid: Grid<T>, params: TvParams) -> Self {
         let secret = id.to_bytes();
         let tv = TraverseV::new_permissioned(&secret, Self::CONTEXT, params);
 
-        let input = solution.to_bytes().expect("serialisation should not fail");
+        let input = Self::preimage(step, grid.clone());
         let proof = tv.mine(&input);
 
-        Self { proof, solution }
+        Self { proof, step, grid }
     }
-    */
 
     fn preimage(step: u64, grid: Grid<T>) -> Vec<u8> {
         let mut out: Vec<u8> = Vec::new();
@@ -45,7 +41,7 @@ where
 
 impl<T> TryFrom<&[u8]> for Proof<T>
 where
-    T: Copy + ToBytes + FromBytes + Serialize + for<'de> Deserialize<'de>,
+    T: Copy + ToBytes + FromBytes,
     for<'a> <T as FromBytes>::Bytes: TryFrom<&'a [u8]>,
 {
     type Error = TlphError;
@@ -73,7 +69,7 @@ where
 
 impl<T> From<Proof<T>> for Vec<u8>
 where
-    T: Copy + ToBytes + FromBytes + Serialize + for<'de> Deserialize<'de>,
+    T: Copy + ToBytes + FromBytes,
     for<'a> <T as FromBytes>::Bytes: TryFrom<&'a [u8]>,
 {
     fn from(value: Proof<T>) -> Self {
@@ -85,7 +81,7 @@ where
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone)]
 pub struct Grid<T> {
     size: usize,
     inner: Vec<T>,
