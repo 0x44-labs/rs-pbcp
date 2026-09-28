@@ -11,6 +11,9 @@ pub enum TlphError {
     SerdeQs(serde_qs::Error),
     InvalidQuery(http::uri::InvalidUri),
     InvalidUri(http::Error),
+    TvParams(traversev::TraverseVErr),
+    UriParse,
+    InvalidHost,
     GridWrongSize,
     ProofTooSmall,
     OutOfRange,
@@ -30,6 +33,9 @@ impl std::fmt::Display for TlphError {
             Self::SerdeQs(e) => return core::fmt::Display::fmt(e, f),
             Self::InvalidQuery(e) => return core::fmt::Display::fmt(e, f),
             Self::InvalidUri(e) => return core::fmt::Display::fmt(e, f),
+            Self::TvParams(e) => return core::fmt::Display::fmt(e, f),
+            Self::UriParse => "not a valid tlph uri",
+            Self::InvalidHost => "uri host invalid for tlph",
             Self::GridWrongSize => "byte length not a multiple of type size",
             Self::ProofTooSmall => "proof is too small",
             Self::OutOfRange => "proof outside valid step range",
@@ -45,6 +51,7 @@ impl std::error::Error for TlphError {
             Self::SerdeQs(e) => Some(e),
             Self::InvalidQuery(e) => Some(e),
             Self::InvalidUri(e) => Some(e),
+            Self::TvParams(e) => Some(e),
             _ => None,
         }
     }
@@ -71,5 +78,11 @@ impl From<http::uri::InvalidUri> for TlphError {
 impl From<http::Error> for TlphError {
     fn from(value: http::Error) -> Self {
         Self::InvalidUri(value)
+    }
+}
+
+impl From<traversev::TraverseVErr> for TlphError {
+    fn from(value: traversev::TraverseVErr) -> Self {
+        Self::TvParams(value)
     }
 }

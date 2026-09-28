@@ -9,6 +9,21 @@ use crate::errors::TlphError;
 use crate::params::Params;
 use crate::solution::Solution;
 
+macro_rules! host_query {
+    ($uri:expr, $host:literal) => {{
+        if $uri.scheme_str() != Some("tlph") {
+            return Err(TlphError::UriParse);
+        }
+        if $uri.host() != Some($host) {
+            return Err(TlphError::InvalidHost);
+        }
+        match $uri.query() {
+            Some(q) => q,
+            None => return Err(TlphError::UriParse),
+        }
+    }};
+}
+
 trait Wire: Serialize {
     fn path_and_query(&self) -> Result<PathAndQuery, TlphError>
     where
@@ -54,6 +69,33 @@ impl Challenge {
             .build()?;
 
         Ok(uri)
+    }
+
+    pub fn from_uri(uri: &Uri) -> Result<Self, TlphError> {
+        let query = host_query!(uri, "challenge");
+        let wire: ChallengeWire = serde_qs::from_str(query)?;
+
+        let tv = traversev::Params::new(
+            wire.m_cost.unwrap_or(traversev::Params::DEFAULT_M),
+            wire.t_cost.unwrap_or(traversev::Params::DEFAULT_T),
+            wire.e_cost.unwrap_or(traversev::Params::DEFAULT_E),
+            wire.n_cost.unwrap_or(traversev::Params::DEFAULT_N),
+        )
+        .map_err(|e| TlphError::TvParams(e))?;
+
+        let params = Params::new(
+            tv,
+            wire.x.unwrap_or(Params::DEFAULT_X),
+            wire.l.unwrap_or(Params::DEFAULT_L),
+            wire.t0,
+        )?;
+
+        Ok(Challenge {
+            id: wire.id,
+            challenge: wire.challenge,
+            start: wire.start,
+            params,
+        })
     }
 }
 
@@ -108,6 +150,17 @@ where
             .build()?;
 
         Ok(uri)
+    }
+
+    pub fn from_uri(uri: &Uri) -> Result<Self, TlphError> {
+        let query = host_query!(uri, "submission");
+        let wire: SubmissionWire = serde_qs::from_str(query)?;
+
+        Ok(Submission {
+            id: wire.id,
+            proof: wire.proof,
+            sollution: Solution::<T>::from_bytes(&wire.solution)?,
+        })
     }
 }
 

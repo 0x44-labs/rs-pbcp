@@ -170,9 +170,9 @@ dependencies = [
 
 [[package]]
 name = "hybrid-array"
-version = "0.4.14"
+version = "0.4.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "707114b52a152fa7bdb290cd7cd5912d9467273b6d74e21b8d81aca1f8533f6b"
+checksum = "27f864f10dfb56725ce5ce5472bc52252c8f93a4ab86327122cebf62c5f59a17"
 dependencies = [
  "typenum",
 ]
@@ -435,9 +435,9 @@ dependencies = [
 
 [[package]]
 name = "traversev"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d791aa8958e655e72bb2ee190917e7bc9fbfb47b545233a7bfcfa13e07fa9f52"
+checksum = "9a8db9be538454e54bc873a3e232889e2e9cfbdb1281129700dd58887c1e9930"
 dependencies = [
  "blake3",
  "salsa20",
