@@ -2,6 +2,7 @@ mod errors;
 mod params;
 mod proof;
 
+use blake3::Hasher;
 use num_traits::{FromBytes, ToBytes};
 use std::marker::PhantomData;
 use traversev::TraverseV;
@@ -31,10 +32,12 @@ where
         let id = Ulid::generate();
         let start_step = params.time_step(None);
 
+        let secret = Self::derive_secret(&id, &challenge, params);
+        let traversev_params = params.tv();
         let permissioned = TraverseV::new_permissioned(
-            &id.to_bytes(),
+            &secret,
             Self::CONTEXT,
-            params.tv(),
+            traversev_params,
         );
 
         Self {
@@ -50,10 +53,12 @@ where
     pub fn new_from(id: Ulid, challenge: Vec<u8>, params: &Params) -> Self {
         let start_step = params.time_step(None);
 
+        let secret = Self::derive_secret(&id, &challenge, params);
+        let traversev_params = params.tv();
         let permissioned = TraverseV::new_permissioned(
-            &id.to_bytes(),
+            &secret,
             Self::CONTEXT,
-            params.tv(),
+            traversev_params,
         );
 
         Self {
@@ -116,5 +121,21 @@ where
 
     pub const fn start_step(&self) -> u64 {
         self.start_step
+    }
+
+    fn derive_secret(
+        id: &Ulid,
+        challenge: &Vec<u8>,
+        params: &Params,
+    ) -> [u8; 32] {
+        let mut hasher = Hasher::new();
+
+        hasher.update(&id.to_bytes());
+        hasher.update(&params.x().to_le_bytes());
+        hasher.update(&params.l().to_le_bytes());
+        hasher.update(&params.t0().to_le_bytes());
+        hasher.update(&challenge);
+
+        hasher.finalize().into()
     }
 }
