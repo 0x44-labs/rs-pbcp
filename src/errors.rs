@@ -1,4 +1,4 @@
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug)]
 pub enum TlphError {
     StepTooSmall,
     StepTooBig,
@@ -7,6 +7,7 @@ pub enum TlphError {
     GridTooSmall,
     GridNotSquare,
     ReservedClaim,
+    SerdeJson(serde_json::Error),
     GridWrongSize,
     ProofTooSmall,
     OutOfRange,
@@ -22,6 +23,7 @@ impl std::fmt::Display for TlphError {
             Self::GridTooSmall => "grid size has a minimum of 2 by 2",
             Self::GridNotSquare => "grid must have equal rows and columns",
             Self::ReservedClaim => "step and grid are reserved names",
+            Self::SerdeJson(e) => return core::fmt::Display::fmt(e, f),
             Self::GridWrongSize => "byte length not a multiple of type size",
             Self::ProofTooSmall => "proof is too small",
             Self::OutOfRange => "proof outside valid step range",
@@ -30,4 +32,17 @@ impl std::fmt::Display for TlphError {
     }
 }
 
-impl std::error::Error for TlphError {}
+impl std::error::Error for TlphError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::SerdeJson(e) => Some(e),
+            _ => None,
+        }
+    }
+}
+
+impl From<serde_json::Error> for TlphError {
+    fn from(value: serde_json::Error) -> Self {
+        Self::SerdeJson(value)
+    }
+}

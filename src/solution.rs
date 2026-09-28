@@ -24,6 +24,14 @@ where
         SolutionBuilder::new(step, grid)
     }
 
+    pub fn from_json(json: &str) -> Result<Self, TlphError> {
+        Ok(serde_json::from_str(json)?)
+    }
+
+    pub fn to_json(&self) -> Result<String, TlphError> {
+        Ok(serde_json::to_string(self)?)
+    }
+
     pub const fn step(&self) -> u64 {
         self.step
     }
