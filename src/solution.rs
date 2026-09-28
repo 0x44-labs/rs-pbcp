@@ -15,7 +15,15 @@ pub struct Solution<T> {
     _marker: PhantomData<T>,
 }
 
-impl<T> Solution<T> {}
+impl<T> Solution<T>
+where
+    T: Copy + ToBytes + FromBytes,
+    for<'a> <T as FromBytes>::Bytes: TryFrom<&'a [u8]>,
+{
+    pub fn new(step: u64, grid: Grid<T>) -> SolutionBuilder<T> {
+        SolutionBuilder::new(step, grid)
+    }
+}
 
 pub struct SolutionBuilder<T> {
     step: u64,
@@ -23,7 +31,11 @@ pub struct SolutionBuilder<T> {
     claims: BTreeMap<String, Value>,
 }
 
-impl<T> SolutionBuilder<T> {
+impl<T> SolutionBuilder<T>
+where
+    T: Copy + ToBytes + FromBytes,
+    for<'a> <T as FromBytes>::Bytes: TryFrom<&'a [u8]>,
+{
     const RESERVED: [&str; 2] = ["step", "grid"];
 
     fn new(step: u64, grid: Grid<T>) -> Self {
@@ -46,6 +58,15 @@ impl<T> SolutionBuilder<T> {
 
         self.claims.insert(name.into(), value.into());
         Ok(self)
+    }
+
+    pub fn build(self) -> Solution<T> {
+        Solution {
+            step: self.step,
+            grid: Vec::<u8>::from(self.grid),
+            claims: self.claims,
+            _marker: PhantomData,
+        }
     }
 }
 
