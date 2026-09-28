@@ -23,6 +23,18 @@ where
     pub fn new(step: u64, grid: Grid<T>) -> SolutionBuilder<T> {
         SolutionBuilder::new(step, grid)
     }
+
+    pub const fn step(&self) -> u64 {
+        self.step
+    }
+
+    pub fn grid(&self) -> Result<Grid<T>, TlphError> {
+        Ok(Grid::<T>::try_from(self.grid.clone())?)
+    }
+
+    pub fn claim(&self, name: &str) -> Option<&Value> {
+        self.claims.get(name)
+    }
 }
 
 pub struct SolutionBuilder<T> {
