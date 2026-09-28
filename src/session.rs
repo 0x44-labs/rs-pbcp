@@ -1,31 +1,5 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-pub struct Session {
-    challenge: Vec<u8>,
-    start_step: u64,
-    params: Params,
-}
-
-impl Session {
-    pub fn new(challenge: Vec<u8>, params: &Params) -> Self {
-        let start_step = params.time_step(None);
-
-        Self {
-            challenge,
-            params: params.clone(),
-            start_step,
-        }
-    }
-
-    pub fn challenge(&self) -> Vec<u8> {
-        self.challenge.clone()
-    }
-
-    pub const fn start_step(&self) -> u64 {
-        self.start_step
-    }
-}
-
 #[derive(Clone)]
 pub struct Params {
     /// PoW Constraint

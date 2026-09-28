@@ -5,29 +5,49 @@ mod session;
 use ulid::Ulid;
 
 use crate::proof::{Grid, Proof, Solution};
-use crate::session::{Params, Session};
+use crate::session::Params;
 
 pub struct Tlph {
     id: Ulid,
-    session: Session,
+    challenge: Vec<u8>,
+    start_step: u64,
+    params: Params,
 }
 
 impl Tlph {
     pub fn new(challenge: Vec<u8>, params: &Params) -> Self {
         let id = Ulid::generate();
-        let session = Session::new(challenge, params);
+        let start_step = params.time_step(None);
 
-        Self { id, session }
+        Self {
+            id,
+            challenge,
+            params: params.clone(),
+            start_step,
+        }
     }
 
     pub fn new_from(id: Ulid, challenge: Vec<u8>, params: &Params) -> Self {
-        let session = Session::new(challenge, params);
+        let start_step = params.time_step(None);
 
-        Self { id, session }
+        Self {
+            id,
+            challenge,
+            params: params.clone(),
+            start_step,
+        }
     }
 
     pub fn id(&self) -> Ulid {
         self.id.clone()
+    }
+
+    pub fn challenge(&self) -> Vec<u8> {
+        self.challenge.clone()
+    }
+
+    pub const fn start_step(&self) -> u64 {
+        self.start_step
     }
 }
 
