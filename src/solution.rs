@@ -1,6 +1,7 @@
 use num_traits::{FromBytes, ToBytes};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use serde_json_canonicalizer;
 use std::{collections::BTreeMap, marker::PhantomData};
 
 use crate::errors::TlphError;
@@ -30,6 +31,14 @@ where
 
     pub fn to_json(&self) -> Result<String, TlphError> {
         Ok(serde_json::to_string(self)?)
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, TlphError> {
+        Ok(serde_json::from_slice(bytes)?)
+    }
+
+    pub fn to_bytes(&self) -> Result<Vec<u8>, TlphError> {
+        Ok(serde_json_canonicalizer::to_vec(self)?)
     }
 
     pub const fn step(&self) -> u64 {
