@@ -1,6 +1,5 @@
 mod errors;
 mod params;
-mod proof;
 mod solution;
 
 use blake3::Hasher;
@@ -9,10 +8,9 @@ use std::marker::PhantomData;
 use traversev::TraverseV;
 use ulid::Ulid;
 
-use crate::errors::TlphError;
-use crate::params::Params;
-use crate::proof::Proof;
-use crate::solution::Grid;
+pub use crate::errors::TlphError;
+pub use crate::params::Params;
+pub use crate::solution::{Grid, Solution};
 
 pub struct Tlph<T> {
     id: Ulid,
@@ -52,6 +50,7 @@ where
         }
     }
 
+    /*
     pub fn new_from(id: Ulid, challenge: Vec<u8>, params: &Params) -> Self {
         let start_step = params.time_step(None);
 
@@ -72,45 +71,38 @@ where
             _marker: PhantomData,
         }
     }
+    */
 
-    pub fn prove(&self, grid: Grid<T>) -> Proof<T> {
-        let step = self.params.time_step(None);
-
-        let mut input: Vec<u8> = Vec::new();
-        input.extend_from_slice(&step.to_le_bytes());
-
-        let grid_bytes = Vec::<u8>::from(grid.clone());
-        input.extend_from_slice(&grid_bytes);
-
-        let proof = self.tv.mine(&input);
-        Proof::new(proof, step, grid)
+    pub fn prove(&self, solution: &Solution<T>) -> Result<u128, TlphError> {
+        let input = solution.to_bytes()?;
+        Ok(self.tv.mine(&input))
     }
 
-    pub fn verify(&self, proof: Proof<T>) -> Result<bool, TlphError> {
+    pub fn verify(
+        &self,
+        solution: &Solution<T>,
+        proof: u128,
+    ) -> Result<bool, TlphError> {
         let current = self.params.time_step(None);
-        self.verify_at(proof, current)
+        self.verify_at(solution, proof, current)
     }
 
     pub fn verify_at(
         &self,
-        proof: Proof<T>,
+        solution: &Solution<T>,
+        proof: u128,
         step: u64,
     ) -> Result<bool, TlphError> {
         let max_step = self.start_step + self.params.l() - 1;
         let upper = step.min(max_step);
         let valid_range = self.start_step..=upper;
 
-        if !valid_range.contains(&proof.step()) {
+        if !valid_range.contains(&solution.step()) {
             return Err(TlphError::OutOfRange);
         }
 
-        let mut input: Vec<u8> = Vec::new();
-        input.extend_from_slice(&proof.step().to_le_bytes());
-
-        let grid_bytes = Vec::<u8>::from(proof.grid());
-        input.extend_from_slice(&grid_bytes);
-
-        Ok(self.tv.verify(&input, proof.proof()))
+        let input = solution.to_bytes()?;
+        Ok(self.tv.verify(&input, proof))
     }
 
     pub fn id(&self) -> Ulid {
