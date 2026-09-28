@@ -1,6 +1,7 @@
 mod errors;
 mod params;
 mod solution;
+mod uri;
 
 use blake3::Hasher;
 use num_traits::{FromBytes, ToBytes};
@@ -16,7 +17,7 @@ pub struct Tlph<T> {
     id: Ulid,
     tv: TraverseV,
     challenge: Vec<u8>,
-    start_step: u64,
+    start: u64,
     params: Params,
     _marker: PhantomData<T>,
 }
@@ -30,7 +31,7 @@ where
 
     pub fn new(challenge: Vec<u8>, params: &Params) -> Self {
         let id = Ulid::generate();
-        let start_step = params.time_step(None);
+        let start = params.time_step(None);
 
         let secret = Self::derive_secret(&id, &challenge, params);
         let traversev_params = params.tv();
@@ -45,7 +46,7 @@ where
             tv: permissioned,
             challenge,
             params: *params,
-            start_step,
+            start,
             _marker: PhantomData,
         }
     }
@@ -93,9 +94,9 @@ where
         proof: u128,
         step: u64,
     ) -> Result<bool, TlphError> {
-        let max_step = self.start_step + self.params.l() - 1;
+        let max_step = self.start + self.params.l() - 1;
         let upper = step.min(max_step);
-        let valid_range = self.start_step..=upper;
+        let valid_range = self.start..=upper;
 
         if !valid_range.contains(&solution.step()) {
             return Err(TlphError::OutOfRange);
@@ -113,8 +114,8 @@ where
         self.challenge.clone()
     }
 
-    pub const fn start_step(&self) -> u64 {
-        self.start_step
+    pub const fn start(&self) -> u64 {
+        self.start
     }
 
     pub fn params(&self) -> Params {
