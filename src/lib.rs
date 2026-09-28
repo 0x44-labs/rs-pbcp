@@ -81,8 +81,16 @@ where
 
     pub fn verify(&self, proof: Proof<T>) -> Result<bool, TlphError> {
         let current = self.params.time_step(None);
+        self.verify_at(proof, current)
+    }
+
+    pub fn verify_at(
+        &self,
+        proof: Proof<T>,
+        step: u64,
+    ) -> Result<bool, TlphError> {
         let max_step = self.start_step + self.params.l() - 1;
-        let upper = current.min(max_step);
+        let upper = step.min(max_step);
         let valid_range = self.start_step..=upper;
 
         if !valid_range.contains(&proof.step()) {
