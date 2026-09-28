@@ -9,7 +9,8 @@ use crate::params::TvParams;
 
 pub struct Proof<T> {
     proof: u128,
-    solution: Solution<T>,
+    step: u64,
+    grid: Grid<T>,
 }
 
 impl<T> Proof<T>
@@ -19,7 +20,8 @@ where
 {
     const CONTEXT: &str = "TLPH-PROOF";
 
-    pub fn new(id: Ulid, solution: Solution<T>, params: TvParams) -> Self {
+    /*
+    pub fn new(id: Ulid, grid: Grid<T>, params: TvParams) -> Self {
         let secret = id.to_bytes();
         let tv = TraverseV::new_permissioned(&secret, Self::CONTEXT, params);
 
@@ -27,6 +29,17 @@ where
         let proof = tv.mine(&input);
 
         Self { proof, solution }
+    }
+    */
+
+    fn preimage(step: u64, grid: Grid<T>) -> Vec<u8> {
+        let mut out: Vec<u8> = Vec::new();
+        out.extend_from_slice(&step.to_le_bytes());
+
+        let grid_bytes = Vec::<u8>::from(grid);
+        out.extend_from_slice(&grid_bytes);
+
+        out
     }
 }
 
@@ -38,7 +51,9 @@ where
     type Error = TlphError;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        if value.len() < 22 {
+        // 16 proof + 8 step + 4 grid (min)
+        const MIN_PROOF_BYTES: usize = 28;
+        if value.len() < MIN_PROOF_BYTES {
             return Err(Self::Error::ProofTooSmall);
         }
 
@@ -46,10 +61,13 @@ where
         proof_bytes.copy_from_slice(&value[..16]);
         let proof = u128::from_le_bytes(proof_bytes);
 
-        let solution = Solution::<T>::from_bytes(&value[16..])
-            .map_err(|_| Self::Error::ProofTooSmall)?;
+        let mut step_bytes = [0u8; 8];
+        step_bytes.copy_from_slice(&value[16..24]);
+        let step = u64::from_le_bytes(step_bytes);
 
-        Ok(Self { proof, solution })
+        let grid = Grid::<T>::try_from(&value[24..])?;
+
+        Ok(Self { proof, step, grid })
     }
 }
 
@@ -61,47 +79,9 @@ where
     fn from(value: Proof<T>) -> Self {
         let mut bytes = Vec::new();
         bytes.extend_from_slice(&value.proof.to_le_bytes());
-        bytes.extend(
-            value
-                .solution
-                .to_bytes()
-                .expect("serialisation should not fail"),
-        );
+        bytes.extend_from_slice(&value.step.to_le_bytes());
+        bytes.extend(Vec::<u8>::from(value.grid));
         bytes
-    }
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct Solution<T> {
-    step: u64,
-    grid: Vec<u8>,
-    #[serde(skip)]
-    _marker: PhantomData<T>,
-}
-
-impl<T> Solution<T>
-where
-    T: Copy + ToBytes + FromBytes + Serialize + for<'de> Deserialize<'de>,
-    for<'a> <T as FromBytes>::Bytes: TryFrom<&'a [u8]>,
-{
-    pub fn new(step: u64, grid: Grid<T>) -> Self {
-        Self {
-            step,
-            grid: grid.into(),
-            _marker: PhantomData,
-        }
-    }
-
-    pub fn grid(&self) -> Result<Grid<T>, TlphError> {
-        Grid::<T>::try_from(self.grid.as_slice())
-    }
-
-    pub fn to_bytes(&self) -> Result<Vec<u8>, postcard::Error> {
-        postcard::to_allocvec(self)
-    }
-
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, postcard::Error> {
-        postcard::from_bytes(bytes)
     }
 }
 
