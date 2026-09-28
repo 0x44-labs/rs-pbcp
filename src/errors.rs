@@ -1,5 +1,11 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TlphError {
+    DifficultyTooLow,
+    DifficultyTooHigh,
+    StepTooSmall,
+    StepTooBig,
+    StepsTooFew,
+    StepsTooMany,
     GridTooSmall,
     GridNotSquare,
     GridWrongSize,
@@ -9,10 +15,16 @@ pub enum TlphError {
 impl std::fmt::Display for TlphError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let msg = match self {
+            Self::DifficultyTooLow => "difficulty is too low",
+            Self::DifficultyTooHigh => "difficulty is too high",
+            Self::StepTooSmall => "time step width is too small",
+            Self::StepTooBig => "time step width is too big",
+            Self::StepsTooFew => "time step count is too low",
+            Self::StepsTooMany => "time step count is too high",
             Self::GridTooSmall => "grid size has a minimum of 2 by 2",
             Self::GridNotSquare => "grid must have equal rows and columns",
             Self::GridWrongSize => "byte length not a multiple of type size",
-            Self::ProofTooSmall => "proof is too small >= 36 expected",
+            Self::ProofTooSmall => "proof is too small",
         };
         f.write_str(msg)
     }
