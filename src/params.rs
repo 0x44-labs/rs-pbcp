@@ -1,13 +1,12 @@
 use std::time::{SystemTime, UNIX_EPOCH};
-
-pub use traversev::Params as TvParams;
+use traversev;
 
 use crate::errors::TlphError;
 
 /// Time-limited Proof-of-Humanity (TLPH) parameters.
 #[derive(Copy, Clone)]
 pub struct Params {
-    tv: TvParams,
+    tv: traversev::Params,
     x: u64,
     l: u64,
     t0: u64,
@@ -15,7 +14,7 @@ pub struct Params {
 
 impl Params {
     /// Default TraverseV parameters.
-    pub const DEFAULT_TV: TvParams = TvParams::DEFAULT;
+    pub const DEFAULT_TV: traversev::Params = traversev::Params::DEFAULT;
 
     /// Default time step width in seconds `x`.
     pub const DEFAULT_X: u64 = 30;
@@ -53,7 +52,7 @@ impl Params {
     /// - `l`: time step count. Between 1 and (2^16) - 1.
     /// - `t0`: optional unix time from which to start counting time steps.
     pub fn new(
-        tv: TvParams,
+        tv: traversev::Params,
         x: u64,
         l: u64,
         t0: Option<u64>,
@@ -80,7 +79,7 @@ impl Params {
     }
 
     /// TraverseV parameters.
-    pub const fn tv(&self) -> TvParams {
+    pub const fn tv(&self) -> traversev::Params {
         self.tv
     }
 

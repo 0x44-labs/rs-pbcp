@@ -117,6 +117,10 @@ where
         self.start_step
     }
 
+    pub fn params(&self) -> Params {
+        self.params.clone()
+    }
+
     fn derive_secret(
         id: &Ulid,
         challenge: &Vec<u8>,
