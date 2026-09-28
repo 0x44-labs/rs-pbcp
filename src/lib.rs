@@ -2,19 +2,26 @@ mod errors;
 mod params;
 mod proof;
 
+use num_traits::{FromBytes, ToBytes};
+use std::marker::PhantomData;
 use ulid::Ulid;
 
 use crate::params::Params;
-use crate::proof::{Grid, Proof, Solution};
+use crate::proof::{Grid, Proof};
 
-pub struct Tlph {
+pub struct Tlph<T> {
     id: Ulid,
     challenge: Vec<u8>,
     start_step: u64,
     params: Params,
+    _marker: PhantomData<T>,
 }
 
-impl Tlph {
+impl<T> Tlph<T>
+where
+    T: Copy + ToBytes + FromBytes,
+    for<'a> <T as FromBytes>::Bytes: TryFrom<&'a [u8]>,
+{
     pub fn new(challenge: Vec<u8>, params: &Params) -> Self {
         let id = Ulid::generate();
         let start_step = params.time_step(None);
@@ -24,6 +31,7 @@ impl Tlph {
             challenge,
             params: *params,
             start_step,
+            _marker: PhantomData,
         }
     }
 
@@ -35,7 +43,15 @@ impl Tlph {
             challenge,
             params: *params,
             start_step,
+            _marker: PhantomData,
         }
+    }
+
+    pub fn prove(&self, grid: Grid<T>) -> Proof<T> {
+        let step = self.params.time_step(None);
+        let proof = Proof::new(self.id, step, grid, self.params.tv());
+
+        proof
     }
 
     pub fn id(&self) -> Ulid {
