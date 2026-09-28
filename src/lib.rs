@@ -7,6 +7,7 @@ use std::marker::PhantomData;
 use traversev::TraverseV;
 use ulid::Ulid;
 
+use crate::errors::TlphError;
 use crate::params::Params;
 use crate::proof::{Grid, Proof};
 
@@ -78,14 +79,23 @@ where
         Proof::new(proof, step, grid)
     }
 
-    pub fn verify(&self, proof: Proof<T>) -> bool {
+    pub fn verify(&self, proof: Proof<T>) -> Result<bool, TlphError> {
+        let current = self.params.time_step(None);
+        let max_step = self.start_step + self.params.l() - 1;
+        let upper = current.min(max_step);
+        let valid_range = self.start_step..=upper;
+
+        if !valid_range.contains(&proof.step()) {
+            return Err(TlphError::OutOfRange);
+        }
+
         let mut input: Vec<u8> = Vec::new();
         input.extend_from_slice(&proof.step().to_le_bytes());
 
         let grid_bytes = Vec::<u8>::from(proof.grid());
         input.extend_from_slice(&grid_bytes);
 
-        self.tv.verify(&input, proof.proof())
+        Ok(self.tv.verify(&input, proof.proof()))
     }
 
     pub fn id(&self) -> Ulid {

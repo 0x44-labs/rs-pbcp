@@ -8,6 +8,7 @@ pub enum TlphError {
     GridNotSquare,
     GridWrongSize,
     ProofTooSmall,
+    OutOfRange,
 }
 
 impl std::fmt::Display for TlphError {
@@ -21,6 +22,7 @@ impl std::fmt::Display for TlphError {
             Self::GridNotSquare => "grid must have equal rows and columns",
             Self::GridWrongSize => "byte length not a multiple of type size",
             Self::ProofTooSmall => "proof is too small",
+            Self::OutOfRange => "proof outside valid step range",
         };
         f.write_str(msg)
     }
