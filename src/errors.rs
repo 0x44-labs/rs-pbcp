@@ -10,6 +10,7 @@ pub enum TlphError {
     SerdeJson(serde_json::Error),
     SerdeQs(serde_qs::Error),
     InvalidQuery(http::uri::InvalidUri),
+    InvalidUri(http::Error),
     GridWrongSize,
     ProofTooSmall,
     OutOfRange,
@@ -28,6 +29,7 @@ impl std::fmt::Display for TlphError {
             Self::SerdeJson(e) => return core::fmt::Display::fmt(e, f),
             Self::SerdeQs(e) => return core::fmt::Display::fmt(e, f),
             Self::InvalidQuery(e) => return core::fmt::Display::fmt(e, f),
+            Self::InvalidUri(e) => return core::fmt::Display::fmt(e, f),
             Self::GridWrongSize => "byte length not a multiple of type size",
             Self::ProofTooSmall => "proof is too small",
             Self::OutOfRange => "proof outside valid step range",
@@ -42,6 +44,7 @@ impl std::error::Error for TlphError {
             Self::SerdeJson(e) => Some(e),
             Self::SerdeQs(e) => Some(e),
             Self::InvalidQuery(e) => Some(e),
+            Self::InvalidUri(e) => Some(e),
             _ => None,
         }
     }
@@ -62,5 +65,11 @@ impl From<serde_qs::Error> for TlphError {
 impl From<http::uri::InvalidUri> for TlphError {
     fn from(value: http::uri::InvalidUri) -> Self {
         Self::InvalidQuery(value)
+    }
+}
+
+impl From<http::Error> for TlphError {
+    fn from(value: http::Error) -> Self {
+        Self::InvalidUri(value)
     }
 }

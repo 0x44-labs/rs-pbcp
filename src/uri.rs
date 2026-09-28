@@ -1,4 +1,5 @@
 use http::{Uri, uri::PathAndQuery};
+use num_traits::{FromBytes, ToBytes};
 use serde::{Deserialize, Serialize};
 use serde_qs;
 use std::str::FromStr;
@@ -22,6 +23,38 @@ pub struct Challenge {
     challenge: Vec<u8>,
     start: u64,
     params: Params,
+}
+
+impl Challenge {
+    pub fn build_uri(
+        id: Ulid,
+        challenge: &[u8],
+        start: u64,
+        params: &Params,
+    ) -> Result<Uri, TlphError> {
+        let tv = params.tv();
+        let wire = ChallengeWire {
+            id,
+            challenge: challenge.to_vec(),
+            start,
+            m_cost: Some(tv.m_cost()),
+            t_cost: Some(tv.t_cost()),
+            e_cost: Some(tv.e_cost()),
+            n_cost: Some(tv.n_cost()),
+            x: Some(params.x()),
+            l: Some(params.l()),
+            t0: Some(params.t0()),
+        };
+
+        let p_and_q = wire.path_and_query()?;
+        let uri = Uri::builder()
+            .scheme("tlph")
+            .authority("challenge")
+            .path_and_query(p_and_q)
+            .build()?;
+
+        Ok(uri)
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -49,6 +82,33 @@ pub struct Submission<T> {
     id: Ulid,
     proof: u128,
     sollution: Solution<T>,
+}
+
+impl<T> Submission<T>
+where
+    T: Copy + ToBytes + FromBytes,
+    for<'a> <T as FromBytes>::Bytes: TryFrom<&'a [u8]>,
+{
+    pub fn build_uri(
+        id: Ulid,
+        proof: u128,
+        solution: &Solution<T>,
+    ) -> Result<Uri, TlphError> {
+        let wire = SubmissionWire {
+            id,
+            proof,
+            solution: solution.to_bytes()?,
+        };
+
+        let p_and_q = wire.path_and_query()?;
+        let uri = Uri::builder()
+            .scheme("tlph")
+            .authority("submission")
+            .path_and_query(p_and_q)
+            .build()?;
+
+        Ok(uri)
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
