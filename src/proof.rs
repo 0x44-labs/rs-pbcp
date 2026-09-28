@@ -1,10 +1,11 @@
 use num_traits::{FromBytes, ToBytes};
 use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
-use traversev::{Params, TraverseV};
+use traversev::TraverseV;
 use ulid::Ulid;
 
 use crate::errors::TlphError;
+use crate::params::TvParams;
 
 pub struct Proof<T> {
     proof: u128,
@@ -18,7 +19,7 @@ where
 {
     const CONTEXT: &str = "TLPH-PROOF";
 
-    pub fn new(id: Ulid, solution: Solution<T>, params: Params) -> Self {
+    pub fn new(id: Ulid, solution: Solution<T>, params: TvParams) -> Self {
         let secret = id.to_bytes();
         let tv = TraverseV::new_permissioned(&secret, Self::CONTEXT, params);
 
@@ -93,14 +94,6 @@ where
 
     pub fn grid(&self) -> Result<Grid<T>, TlphError> {
         Grid::<T>::try_from(self.grid.as_slice())
-    }
-
-    pub fn to_json(&self) -> Result<String, serde_json::Error> {
-        serde_json::to_string(self)
-    }
-
-    pub fn from_json(json: &str) -> Result<Self, serde_json::Error> {
-        serde_json::from_str(json)
     }
 
     pub fn to_bytes(&self) -> Result<Vec<u8>, postcard::Error> {
