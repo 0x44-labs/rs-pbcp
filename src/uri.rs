@@ -1,5 +1,28 @@
+use http::{Uri, uri::PathAndQuery};
 use serde::{Deserialize, Serialize};
+use serde_qs;
+use std::str::FromStr;
 use ulid::Ulid;
+
+use crate::errors::TlphError;
+use crate::params::Params;
+use crate::solution::Solution;
+
+trait Wire: Serialize {
+    fn path_and_query(&self) -> Result<PathAndQuery, TlphError>
+    where
+        Self: Sized,
+    {
+        Ok(PathAndQuery::from_str(&serde_qs::to_string(self)?)?)
+    }
+}
+
+pub struct Challenge {
+    id: Ulid,
+    challenge: Vec<u8>,
+    start: u64,
+    params: Params,
+}
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -20,6 +43,14 @@ struct ChallengeWire {
     t0: Option<u64>,
 }
 
+impl Wire for ChallengeWire {}
+
+pub struct Submission<T> {
+    id: Ulid,
+    proof: u128,
+    sollution: Solution<T>,
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct SubmissionWire {
@@ -29,6 +60,8 @@ struct SubmissionWire {
     #[serde(with = "base64url")]
     solution: Vec<u8>,
 }
+
+impl Wire for SubmissionWire {}
 
 mod base64url {
     use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};

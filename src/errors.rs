@@ -8,6 +8,8 @@ pub enum TlphError {
     GridNotSquare,
     ReservedClaim,
     SerdeJson(serde_json::Error),
+    SerdeQs(serde_qs::Error),
+    InvalidQuery(http::uri::InvalidUri),
     GridWrongSize,
     ProofTooSmall,
     OutOfRange,
@@ -24,6 +26,8 @@ impl std::fmt::Display for TlphError {
             Self::GridNotSquare => "grid must have equal rows and columns",
             Self::ReservedClaim => "step and grid are reserved names",
             Self::SerdeJson(e) => return core::fmt::Display::fmt(e, f),
+            Self::SerdeQs(e) => return core::fmt::Display::fmt(e, f),
+            Self::InvalidQuery(e) => return core::fmt::Display::fmt(e, f),
             Self::GridWrongSize => "byte length not a multiple of type size",
             Self::ProofTooSmall => "proof is too small",
             Self::OutOfRange => "proof outside valid step range",
@@ -36,6 +40,8 @@ impl std::error::Error for TlphError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::SerdeJson(e) => Some(e),
+            Self::SerdeQs(e) => Some(e),
+            Self::InvalidQuery(e) => Some(e),
             _ => None,
         }
     }
@@ -44,5 +50,17 @@ impl std::error::Error for TlphError {
 impl From<serde_json::Error> for TlphError {
     fn from(value: serde_json::Error) -> Self {
         Self::SerdeJson(value)
+    }
+}
+
+impl From<serde_qs::Error> for TlphError {
+    fn from(value: serde_qs::Error) -> Self {
+        Self::SerdeQs(value)
+    }
+}
+
+impl From<http::uri::InvalidUri> for TlphError {
+    fn from(value: http::uri::InvalidUri) -> Self {
+        Self::InvalidQuery(value)
     }
 }
