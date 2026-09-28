@@ -1,6 +1,6 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-#[derive(Clone)]
+#[derive(Copy, Clone)]
 pub struct Params {
     /// PoW Constraint
     n: u8,

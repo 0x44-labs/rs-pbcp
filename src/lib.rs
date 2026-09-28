@@ -1,11 +1,11 @@
 mod errors;
+mod params;
 mod proof;
-mod session;
 
 use ulid::Ulid;
 
+use crate::params::Params;
 use crate::proof::{Grid, Proof, Solution};
-use crate::session::Params;
 
 pub struct Tlph {
     id: Ulid,
@@ -22,7 +22,7 @@ impl Tlph {
         Self {
             id,
             challenge,
-            params: params.clone(),
+            params: *params,
             start_step,
         }
     }
@@ -33,7 +33,7 @@ impl Tlph {
         Self {
             id,
             challenge,
-            params: params.clone(),
+            params: *params,
             start_step,
         }
     }
