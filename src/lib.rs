@@ -4,6 +4,7 @@ mod proof;
 
 use num_traits::{FromBytes, ToBytes};
 use std::marker::PhantomData;
+use traversev::TraverseV;
 use ulid::Ulid;
 
 use crate::params::Params;
@@ -11,6 +12,7 @@ use crate::proof::{Grid, Proof};
 
 pub struct Tlph<T> {
     id: Ulid,
+    tv: TraverseV,
     challenge: Vec<u8>,
     start_step: u64,
     params: Params,
@@ -22,12 +24,21 @@ where
     T: Copy + ToBytes + FromBytes,
     for<'a> <T as FromBytes>::Bytes: TryFrom<&'a [u8]>,
 {
+    const CONTEXT: &str = "TIME_LIMITED_PROOF_OF_HUMANITY";
+
     pub fn new(challenge: Vec<u8>, params: &Params) -> Self {
         let id = Ulid::generate();
         let start_step = params.time_step(None);
 
+        let permissioned = TraverseV::new_permissioned(
+            &id.to_bytes(),
+            Self::CONTEXT,
+            params.tv(),
+        );
+
         Self {
             id,
+            tv: permissioned,
             challenge,
             params: *params,
             start_step,
@@ -38,8 +49,15 @@ where
     pub fn new_from(id: Ulid, challenge: Vec<u8>, params: &Params) -> Self {
         let start_step = params.time_step(None);
 
+        let permissioned = TraverseV::new_permissioned(
+            &id.to_bytes(),
+            Self::CONTEXT,
+            params.tv(),
+        );
+
         Self {
             id,
+            tv: permissioned,
             challenge,
             params: *params,
             start_step,
@@ -49,9 +67,15 @@ where
 
     pub fn prove(&self, grid: Grid<T>) -> Proof<T> {
         let step = self.params.time_step(None);
-        let proof = Proof::new(self.id, step, grid, self.params.tv());
 
-        proof
+        let mut input: Vec<u8> = Vec::new();
+        input.extend_from_slice(&step.to_le_bytes());
+
+        let grid_bytes = Vec::<u8>::from(grid.clone());
+        input.extend_from_slice(&grid_bytes);
+
+        let proof = self.tv.mine(&input);
+        Proof::new(proof, step, grid)
     }
 
     pub fn id(&self) -> Ulid {

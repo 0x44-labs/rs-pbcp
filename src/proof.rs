@@ -1,9 +1,6 @@
 use num_traits::{FromBytes, ToBytes};
-use traversev::TraverseV;
-use ulid::Ulid;
 
 use crate::errors::TlphError;
-use crate::params::TvParams;
 
 pub struct Proof<T> {
     proof: u128,
@@ -16,26 +13,8 @@ where
     T: Copy + ToBytes + FromBytes,
     for<'a> <T as FromBytes>::Bytes: TryFrom<&'a [u8]>,
 {
-    const CONTEXT: &str = "TLPH-PROOF";
-
-    pub fn new(id: Ulid, step: u64, grid: Grid<T>, params: TvParams) -> Self {
-        let secret = id.to_bytes();
-        let tv = TraverseV::new_permissioned(&secret, Self::CONTEXT, params);
-
-        let input = Self::preimage(step, grid.clone());
-        let proof = tv.mine(&input);
-
+    pub fn new(proof: u128, step: u64, grid: Grid<T>) -> Self {
         Self { proof, step, grid }
-    }
-
-    fn preimage(step: u64, grid: Grid<T>) -> Vec<u8> {
-        let mut out: Vec<u8> = Vec::new();
-        out.extend_from_slice(&step.to_le_bytes());
-
-        let grid_bytes = Vec::<u8>::from(grid);
-        out.extend_from_slice(&grid_bytes);
-
-        out
     }
 }
 
