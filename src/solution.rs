@@ -114,14 +114,14 @@ impl<T: Copy + ToBytes + FromBytes> Grid<T> {
     }
 }
 
-impl<T> TryFrom<&[u8]> for Grid<T>
+impl<T> TryFrom<Vec<u8>> for Grid<T>
 where
     T: Copy + ToBytes + FromBytes,
     for<'a> <T as FromBytes>::Bytes: TryFrom<&'a [u8]>,
 {
     type Error = TlphError;
 
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
         let num_size = std::mem::size_of::<T>();
         if num_size == 0 || value.len() % num_size != 0 {
             return Err(Self::Error::GridWrongSize);
