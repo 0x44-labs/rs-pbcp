@@ -1,23 +1,21 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
+pub use traversev::Params as TvParams;
+
 use crate::errors::TlphError;
 
 /// Time-limited Proof-of-Humanity (TLPH) parameters.
 #[derive(Copy, Clone)]
 pub struct Params {
-    n: u64,
+    tv: TvParams,
     x: u64,
     l: u64,
     t0: u64,
 }
 
 impl Params {
-    /// Default proof-of-work difficulty `n`.
-    pub const DEFAULT_N: u64 = 20;
-
-    const MIN_N: u64 = 1;
-
-    const MAX_N: u64 = u8::MAX as u64;
+    /// Default TraverseV parameters.
+    pub const DEFAULT_TV: TvParams = TvParams::DEFAULT;
 
     /// Default time step width in seconds `x`.
     pub const DEFAULT_X: u64 = 30;
@@ -38,7 +36,7 @@ impl Params {
 
     /// Default parameters.
     pub const DEFAULT: Self = Params {
-        n: Self::DEFAULT_N,
+        tv: Self::DEFAULT_TV,
         x: Self::DEFAULT_X,
         l: Self::DEFAULT_L,
         t0: Self::DEFAULT_T0,
@@ -50,23 +48,16 @@ impl Params {
     /// falls outside its accepted range.
     ///
     /// # Arguments
-    /// - `n`: proof-of-work difficulty as a number of leading zero bits.
-    ///   Between 1 and (2^8) - 1.
+    /// - `tv`: TraverseV [parameters](traversev::Params).
     /// - `x`: time step width in seconds. Between 1 and (2^16) - 1.
     /// - `l`: time step count. Between 1 and (2^16) - 1.
     /// - `t0`: optional unix time from which to start counting time steps.
     pub fn new(
-        n: u64,
+        tv: TvParams,
         x: u64,
         l: u64,
         t0: Option<u64>,
     ) -> Result<Self, TlphError> {
-        if n < Self::MIN_N {
-            return Err(TlphError::DifficultyTooLow);
-        }
-        if n > Self::MAX_N {
-            return Err(TlphError::DifficultyTooHigh);
-        }
         if x < Self::MIN_X {
             return Err(TlphError::StepTooSmall);
         }
@@ -81,16 +72,16 @@ impl Params {
         }
 
         Ok(Params {
-            n,
+            tv,
             x,
             l,
             t0: t0.unwrap_or(Self::DEFAULT_T0),
         })
     }
 
-    /// Proof-of-work difficulty.
-    pub const fn n(&self) -> u64 {
-        self.n
+    /// TraverseV parameters.
+    pub const fn tv(&self) -> TvParams {
+        self.tv
     }
 
     /// Time step width in seconds.

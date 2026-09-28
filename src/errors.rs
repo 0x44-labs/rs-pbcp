@@ -1,7 +1,5 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TlphError {
-    DifficultyTooLow,
-    DifficultyTooHigh,
     StepTooSmall,
     StepTooBig,
     StepsTooFew,
@@ -15,8 +13,6 @@ pub enum TlphError {
 impl std::fmt::Display for TlphError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let msg = match self {
-            Self::DifficultyTooLow => "difficulty is too low",
-            Self::DifficultyTooHigh => "difficulty is too high",
             Self::StepTooSmall => "time step width is too small",
             Self::StepTooBig => "time step width is too big",
             Self::StepsTooFew => "time step count is too low",
