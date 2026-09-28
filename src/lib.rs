@@ -11,7 +11,8 @@ use ulid::Ulid;
 
 use crate::errors::TlphError;
 use crate::params::Params;
-use crate::proof::{Grid, Proof};
+use crate::proof::Proof;
+use crate::solution::Grid;
 
 pub struct Tlph<T> {
     id: Ulid,
