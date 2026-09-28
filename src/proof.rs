@@ -16,6 +16,18 @@ where
     pub fn new(proof: u128, step: u64, grid: Grid<T>) -> Self {
         Self { proof, step, grid }
     }
+
+    pub const fn proof(&self) -> u128 {
+        self.proof
+    }
+
+    pub const fn step(&self) -> u64 {
+        self.step
+    }
+
+    pub fn grid(&self) -> Grid<T> {
+        self.grid.clone()
+    }
 }
 
 impl<T> TryFrom<&[u8]> for Proof<T>
