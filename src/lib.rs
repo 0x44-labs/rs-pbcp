@@ -13,12 +13,12 @@ use ulid::Ulid;
 pub use crate::errors::TlphError;
 pub use crate::params::Params;
 pub use crate::solution::{Grid, Solution};
-use crate::uri::{Session, Submission};
+use crate::uri::{Challenge, Submission};
 
 pub struct Tlph<T> {
     id: Ulid,
     tv: TraverseV,
-    challenge: Vec<u8>,
+    nonce: Vec<u8>,
     start: u64,
     params: Params,
     _marker: PhantomData<T>,
@@ -31,11 +31,11 @@ where
 {
     const CONTEXT: &str = "TIME_LIMITED_PROOF_OF_HUMANITY";
 
-    pub fn new(challenge: Vec<u8>, params: &Params) -> Self {
+    pub fn new(nonce: Vec<u8>, params: &Params) -> Self {
         let id = Ulid::generate();
         let start = params.time_step(None);
 
-        let secret = Self::derive_secret(&id, &challenge, params);
+        let secret = Self::derive_secret(&id, &nonce, params);
         let traversev_params = params.tv();
         let permissioned = TraverseV::new_permissioned(
             &secret,
@@ -46,7 +46,7 @@ where
         Self {
             id,
             tv: permissioned,
-            challenge,
+            nonce,
             params: *params,
             start,
             _marker: PhantomData,
@@ -54,12 +54,12 @@ where
     }
 
     pub fn new_from_uri(uri: &Uri) -> Result<Self, TlphError> {
-        let session = Session::from_uri(uri)?;
+        let session = Challenge::from_uri(uri)?;
         let id = session.id();
-        let challenge = session.challenge();
+        let nonce = session.nonce();
         let params = session.params();
 
-        let secret = Self::derive_secret(&id, &challenge, &params);
+        let secret = Self::derive_secret(&id, &nonce, &params);
         let traversev_params = params.tv();
         let permissioned = TraverseV::new_permissioned(
             &secret,
@@ -70,7 +70,7 @@ where
         Ok(Self {
             id,
             tv: permissioned,
-            challenge,
+            nonce,
             params,
             start: session.start(),
             _marker: PhantomData,
@@ -78,9 +78,9 @@ where
     }
 
     pub fn session(&self) -> Result<Uri, TlphError> {
-        let uri = Session::build_uri(
+        let uri = Challenge::build_uri(
             self.id,
-            &self.challenge,
+            &self.nonce,
             self.start,
             &self.params,
         )?;
@@ -120,8 +120,8 @@ where
         self.id.clone()
     }
 
-    pub fn challenge(&self) -> Vec<u8> {
-        self.challenge.clone()
+    pub fn nonce(&self) -> Vec<u8> {
+        self.nonce.clone()
     }
 
     pub const fn start(&self) -> u64 {
@@ -132,18 +132,14 @@ where
         self.params.clone()
     }
 
-    fn derive_secret(
-        id: &Ulid,
-        challenge: &Vec<u8>,
-        params: &Params,
-    ) -> [u8; 32] {
+    fn derive_secret(id: &Ulid, nonce: &Vec<u8>, params: &Params) -> [u8; 32] {
         let mut hasher = Hasher::new();
 
         hasher.update(&id.to_bytes());
         hasher.update(&params.x().to_le_bytes());
         hasher.update(&params.l().to_le_bytes());
         hasher.update(&params.t0().to_le_bytes());
-        hasher.update(&challenge);
+        hasher.update(&nonce);
 
         hasher.finalize().into()
     }

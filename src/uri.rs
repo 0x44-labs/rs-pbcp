@@ -33,24 +33,24 @@ trait Wire: Serialize {
     }
 }
 
-pub struct Session {
+pub struct Challenge {
     id: Ulid,
-    challenge: Vec<u8>,
+    nonce: Vec<u8>,
     start: u64,
     params: Params,
 }
 
-impl Session {
+impl Challenge {
     pub fn build_uri(
         id: Ulid,
-        challenge: &[u8],
+        nonce: &[u8],
         start: u64,
         params: &Params,
     ) -> Result<Uri, TlphError> {
         let tv = params.tv();
-        let wire = SessionWire {
+        let wire = ChallengeWire {
             id,
-            challenge: challenge.to_vec(),
+            nonce: nonce.to_vec(),
             start,
             m_cost: Some(tv.m_cost()),
             t_cost: Some(tv.t_cost()),
@@ -64,7 +64,7 @@ impl Session {
         let p_and_q = wire.path_and_query()?;
         let uri = Uri::builder()
             .scheme("tlph")
-            .authority("session")
+            .authority("challenge")
             .path_and_query(p_and_q)
             .build()?;
 
@@ -72,8 +72,8 @@ impl Session {
     }
 
     pub fn from_uri(uri: &Uri) -> Result<Self, TlphError> {
-        let query = host_query!(uri, "session");
-        let wire: SessionWire = serde_qs::from_str(query)?;
+        let query = host_query!(uri, "challenge");
+        let wire: ChallengeWire = serde_qs::from_str(query)?;
 
         let tv = traversev::Params::new(
             wire.m_cost.unwrap_or(traversev::Params::DEFAULT_M),
@@ -90,9 +90,9 @@ impl Session {
             wire.t0,
         )?;
 
-        Ok(Session {
+        Ok(Challenge {
             id: wire.id,
-            challenge: wire.challenge,
+            nonce: wire.nonce,
             start: wire.start,
             params,
         })
@@ -102,8 +102,8 @@ impl Session {
         self.id.clone()
     }
 
-    pub fn challenge(&self) -> Vec<u8> {
-        self.challenge.clone()
+    pub fn nonce(&self) -> Vec<u8> {
+        self.nonce.clone()
     }
 
     pub const fn start(&self) -> u64 {
@@ -117,10 +117,10 @@ impl Session {
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct SessionWire {
+struct ChallengeWire {
     id: Ulid,
     #[serde(with = "base64url")]
-    challenge: Vec<u8>,
+    nonce: Vec<u8>,
     start: u64,
     m_cost: Option<u32>,
     t_cost: Option<u32>,
@@ -134,7 +134,7 @@ struct SessionWire {
     t0: Option<u64>,
 }
 
-impl Wire for SessionWire {}
+impl Wire for ChallengeWire {}
 
 pub struct Submission<T> {
     id: Ulid,
