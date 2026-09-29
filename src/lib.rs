@@ -4,6 +4,7 @@ mod solution;
 mod uri;
 
 use blake3::Hasher;
+use http::Uri;
 use num_traits::{FromBytes, ToBytes};
 use std::marker::PhantomData;
 use traversev::TraverseV;
@@ -12,6 +13,7 @@ use ulid::Ulid;
 pub use crate::errors::TlphError;
 pub use crate::params::Params;
 pub use crate::solution::{Grid, Solution};
+use crate::uri::Session;
 
 pub struct Tlph<T> {
     id: Ulid,
@@ -51,11 +53,13 @@ where
         }
     }
 
-    /*
-    pub fn new_from(id: Ulid, challenge: Vec<u8>, params: &Params) -> Self {
-        let start_step = params.time_step(None);
+    pub fn new_from_uri(uri: &Uri) -> Result<Self, TlphError> {
+        let session = Session::from_uri(uri)?;
+        let id = session.id();
+        let challenge = session.challenge();
+        let params = session.params();
 
-        let secret = Self::derive_secret(&id, &challenge, params);
+        let secret = Self::derive_secret(&id, &challenge, &params);
         let traversev_params = params.tv();
         let permissioned = TraverseV::new_permissioned(
             &secret,
@@ -63,16 +67,15 @@ where
             traversev_params,
         );
 
-        Self {
+        Ok(Self {
             id,
             tv: permissioned,
             challenge,
-            params: *params,
-            start_step,
+            params,
+            start: session.start(),
             _marker: PhantomData,
-        }
+        })
     }
-    */
 
     pub fn prove(&self, solution: &Solution<T>) -> Result<u128, TlphError> {
         let input = solution.to_bytes()?;
