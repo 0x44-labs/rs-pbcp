@@ -97,6 +97,22 @@ impl Challenge {
             params,
         })
     }
+
+    pub fn id(&self) -> Ulid {
+        self.id.clone()
+    }
+
+    pub fn challenge(&self) -> Vec<u8> {
+        self.challenge.clone()
+    }
+
+    pub const fn start(&self) -> u64 {
+        self.start
+    }
+
+    pub fn params(&self) -> Params {
+        self.params.clone()
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -123,7 +139,7 @@ impl Wire for ChallengeWire {}
 pub struct Submission<T> {
     id: Ulid,
     proof: u128,
-    sollution: Solution<T>,
+    solution: Solution<T>,
 }
 
 impl<T> Submission<T>
@@ -159,8 +175,20 @@ where
         Ok(Submission {
             id: wire.id,
             proof: wire.proof,
-            sollution: Solution::<T>::from_bytes(&wire.solution)?,
+            solution: Solution::<T>::from_bytes(&wire.solution)?,
         })
+    }
+
+    pub fn id(&self) -> Ulid {
+        self.id.clone()
+    }
+
+    pub const fn proof(&self) -> u128 {
+        self.proof
+    }
+
+    pub fn solution(&self) -> Solution<T> {
+        self.solution.clone()
     }
 }
 
