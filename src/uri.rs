@@ -30,8 +30,8 @@ trait Wire: Serialize {
         Self: Sized,
     {
         let querystring = serde_qs::to_string(self)?;
-        let path = format!("/{}", querystring);
-        Ok(PathAndQuery::from_str(&path)?)
+        let p_and_q = format!("/?{}", querystring);
+        Ok(PathAndQuery::from_str(&p_and_q)?)
     }
 }
 
