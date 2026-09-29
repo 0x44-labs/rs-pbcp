@@ -77,7 +77,7 @@ where
         })
     }
 
-    pub fn session(&self) -> Result<Uri, TlphError> {
+    pub fn challenge(&self) -> Result<Uri, TlphError> {
         let challenge = Challenge::build_uri(
             self.id,
             &self.nonce,
@@ -102,7 +102,7 @@ where
     }
 
     pub fn verify_at(&self, uri: &Uri, step: u64) -> Result<bool, TlphError> {
-        let proof: Proof<T> = Proof::from_uri(uri)?;
+        let proof = Proof::<T>::from_uri(uri)?;
         if proof.id() != self.id {
             return Err(TlphError::WrongSession);
         }
