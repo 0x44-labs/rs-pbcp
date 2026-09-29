@@ -10,7 +10,6 @@ use crate::errors::TlphError;
 pub struct Solution<T> {
     step: u64,
     grid: Vec<u8>,
-    #[serde(flatten)]
     claims: BTreeMap<String, Value>,
     #[serde(skip)]
     _marker: PhantomData<T>,
@@ -65,8 +64,6 @@ where
     T: Copy + ToBytes + FromBytes,
     for<'a> <T as FromBytes>::Bytes: TryFrom<&'a [u8]>,
 {
-    const RESERVED: [&str; 2] = ["step", "grid"];
-
     fn new(step: u64, grid: Grid<T>) -> Self {
         Self {
             step,
@@ -79,14 +76,9 @@ where
         mut self,
         name: impl Into<String>,
         value: impl Into<Value>,
-    ) -> Result<Self, TlphError> {
-        let name = name.into();
-        if Self::RESERVED.contains(&name.as_str()) {
-            return Err(TlphError::ReservedClaim);
-        }
-
+    ) -> Self {
         self.claims.insert(name.into(), value.into());
-        Ok(self)
+        self
     }
 
     pub fn build(self) -> Solution<T> {
