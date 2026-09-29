@@ -13,7 +13,7 @@ use ulid::Ulid;
 pub use crate::errors::TlphError;
 pub use crate::params::Params;
 pub use crate::solution::{Grid, Solution};
-use crate::uri::Session;
+use crate::uri::{Session, Submission};
 
 pub struct Tlph<T> {
     id: Ulid,
@@ -77,36 +77,43 @@ where
         })
     }
 
-    pub fn prove(&self, solution: &Solution<T>) -> Result<u128, TlphError> {
+    pub fn session(&self) -> Result<Uri, TlphError> {
+        let uri = Session::build_uri(
+            self.id,
+            &self.challenge,
+            self.start,
+            &self.params,
+        )?;
+
+        Ok(uri)
+    }
+
+    pub fn prove(&self, solution: &Solution<T>) -> Result<Uri, TlphError> {
         let input = solution.to_bytes()?;
-        Ok(self.tv.mine(&input))
+        let proof = self.tv.mine(&input);
+
+        let uri = Submission::build_uri(self.id, proof, solution)?;
+        Ok(uri)
     }
 
-    pub fn verify(
-        &self,
-        solution: &Solution<T>,
-        proof: u128,
-    ) -> Result<bool, TlphError> {
+    pub fn verify(&self, uri: &Uri) -> Result<bool, TlphError> {
         let current = self.params.time_step(None);
-        self.verify_at(solution, proof, current)
+        self.verify_at(uri, current)
     }
 
-    pub fn verify_at(
-        &self,
-        solution: &Solution<T>,
-        proof: u128,
-        step: u64,
-    ) -> Result<bool, TlphError> {
+    pub fn verify_at(&self, uri: &Uri, step: u64) -> Result<bool, TlphError> {
+        let submission: Submission<T> = Submission::from_uri(uri)?;
+
         let max_step = self.start + self.params.l() - 1;
         let upper = step.min(max_step);
         let valid_range = self.start..=upper;
 
-        if !valid_range.contains(&solution.step()) {
+        if !valid_range.contains(&submission.solution().step()) {
             return Err(TlphError::OutOfRange);
         }
 
-        let input = solution.to_bytes()?;
-        Ok(self.tv.verify(&input, proof))
+        let input = &submission.solution().to_bytes()?;
+        Ok(self.tv.verify(&input, submission.proof()))
     }
 
     pub fn id(&self) -> Ulid {
