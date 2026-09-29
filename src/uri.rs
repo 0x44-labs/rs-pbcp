@@ -136,32 +136,32 @@ struct ChallengeWire {
 
 impl Wire for ChallengeWire {}
 
-pub struct Submission<T> {
+pub struct Proof<T> {
     id: Ulid,
-    proof: u128,
+    nonce: u128,
     solution: Solution<T>,
 }
 
-impl<T> Submission<T>
+impl<T> Proof<T>
 where
     T: Copy + ToBytes + FromBytes,
     for<'a> <T as FromBytes>::Bytes: TryFrom<&'a [u8]>,
 {
     pub fn build_uri(
         id: Ulid,
-        proof: u128,
+        nonce: u128,
         solution: &Solution<T>,
     ) -> Result<Uri, TlphError> {
-        let wire = SubmissionWire {
+        let wire = ProofWire {
             id,
-            proof,
+            nonce,
             solution: solution.to_bytes()?,
         };
 
         let p_and_q = wire.path_and_query()?;
         let uri = Uri::builder()
             .scheme("tlph")
-            .authority("submission")
+            .authority("proof")
             .path_and_query(p_and_q)
             .build()?;
 
@@ -169,12 +169,12 @@ where
     }
 
     pub fn from_uri(uri: &Uri) -> Result<Self, TlphError> {
-        let query = host_query!(uri, "submission");
-        let wire: SubmissionWire = serde_qs::from_str(query)?;
+        let query = host_query!(uri, "proof");
+        let wire: ProofWire = serde_qs::from_str(query)?;
 
-        Ok(Submission {
+        Ok(Proof {
             id: wire.id,
-            proof: wire.proof,
+            nonce: wire.nonce,
             solution: Solution::<T>::from_bytes(&wire.solution)?,
         })
     }
@@ -183,8 +183,8 @@ where
         self.id.clone()
     }
 
-    pub const fn proof(&self) -> u128 {
-        self.proof
+    pub const fn nonce(&self) -> u128 {
+        self.nonce
     }
 
     pub fn solution(&self) -> Solution<T> {
@@ -194,15 +194,15 @@ where
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct SubmissionWire {
+struct ProofWire {
     id: Ulid,
     #[serde(with = "base64url_u128")]
-    proof: u128,
+    nonce: u128,
     #[serde(with = "base64url")]
     solution: Vec<u8>,
 }
 
-impl Wire for SubmissionWire {}
+impl Wire for ProofWire {}
 
 mod base64url {
     use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
@@ -240,11 +240,11 @@ mod base64url_u128 {
         let bytes = URL_SAFE_NO_PAD
             .decode(&input)
             .map_err(|e| <D::Error as serde::de::Error>::custom(e))?;
-        let proof: [u8; 16] = bytes.try_into().map_err(|_| {
+        let nonce: [u8; 16] = bytes.try_into().map_err(|_| {
             <D::Error as serde::de::Error>::custom(
-                "proof must decode to 16 bytes",
+                "nonce must decode to 16 bytes",
             )
         })?;
-        Ok(u128::from_le_bytes(proof))
+        Ok(u128::from_le_bytes(nonce))
     }
 }

@@ -13,7 +13,7 @@ use ulid::Ulid;
 pub use crate::errors::TlphError;
 pub use crate::params::Params;
 pub use crate::solution::{Grid, Solution};
-use crate::uri::{Challenge, Submission};
+use crate::uri::{Challenge, Proof};
 
 pub struct Tlph<T> {
     id: Ulid,
@@ -90,9 +90,9 @@ where
 
     pub fn prove(&self, solution: &Solution<T>) -> Result<Uri, TlphError> {
         let input = solution.to_bytes()?;
-        let proof = self.tv.mine(&input);
+        let nonce = self.tv.mine(&input);
 
-        let uri = Submission::build_uri(self.id, proof, solution)?;
+        let uri = Proof::build_uri(self.id, nonce, solution)?;
         Ok(uri)
     }
 
@@ -102,18 +102,18 @@ where
     }
 
     pub fn verify_at(&self, uri: &Uri, step: u64) -> Result<bool, TlphError> {
-        let submission: Submission<T> = Submission::from_uri(uri)?;
+        let proof: Proof<T> = Proof::from_uri(uri)?;
 
         let max_step = self.start + self.params.l() - 1;
         let upper = step.min(max_step);
         let valid_range = self.start..=upper;
 
-        if !valid_range.contains(&submission.solution().step()) {
+        if !valid_range.contains(&proof.solution().step()) {
             return Err(TlphError::OutOfRange);
         }
 
-        let input = &submission.solution().to_bytes()?;
-        Ok(self.tv.verify(&input, submission.proof()))
+        let input = &proof.solution().to_bytes()?;
+        Ok(self.tv.verify(&input, proof.nonce()))
     }
 
     pub fn id(&self) -> Ulid {
