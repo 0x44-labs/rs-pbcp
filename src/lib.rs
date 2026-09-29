@@ -54,10 +54,10 @@ where
     }
 
     pub fn new_from_uri(uri: &Uri) -> Result<Self, TlphError> {
-        let session = Challenge::from_uri(uri)?;
-        let id = session.id();
-        let nonce = session.nonce();
-        let params = session.params();
+        let challenge = Challenge::from_uri(uri)?;
+        let id = challenge.id();
+        let nonce = challenge.nonce();
+        let params = challenge.params();
 
         let secret = Self::derive_secret(&id, &nonce, &params);
         let traversev_params = params.tv();
@@ -72,28 +72,28 @@ where
             tv: permissioned,
             nonce,
             params,
-            start: session.start(),
+            start: challenge.start(),
             _marker: PhantomData,
         })
     }
 
     pub fn session(&self) -> Result<Uri, TlphError> {
-        let uri = Challenge::build_uri(
+        let challenge = Challenge::build_uri(
             self.id,
             &self.nonce,
             self.start,
             &self.params,
         )?;
 
-        Ok(uri)
+        Ok(challenge)
     }
 
     pub fn prove(&self, solution: &Solution<T>) -> Result<Uri, TlphError> {
         let input = solution.to_bytes()?;
         let nonce = self.tv.mine(&input);
 
-        let uri = Proof::build_uri(self.id, nonce, solution)?;
-        Ok(uri)
+        let proof = Proof::build_uri(self.id, nonce, solution)?;
+        Ok(proof)
     }
 
     pub fn verify(&self, uri: &Uri) -> Result<bool, TlphError> {
@@ -103,6 +103,9 @@ where
 
     pub fn verify_at(&self, uri: &Uri, step: u64) -> Result<bool, TlphError> {
         let proof: Proof<T> = Proof::from_uri(uri)?;
+        if proof.id() != self.id {
+            return Err(TlphError::WrongSession);
+        }
 
         let max_step = self.start + self.params.l() - 1;
         let upper = step.min(max_step);

@@ -15,7 +15,7 @@ pub enum TlphError {
     UriParse,
     InvalidHost,
     GridWrongSize,
-    ProofTooSmall,
+    WrongSession,
     OutOfRange,
 }
 
@@ -37,7 +37,7 @@ impl std::fmt::Display for TlphError {
             Self::UriParse => "not a valid tlph uri",
             Self::InvalidHost => "uri host invalid for tlph",
             Self::GridWrongSize => "byte length not a multiple of type size",
-            Self::ProofTooSmall => "proof is too small",
+            Self::WrongSession => "proof does not match current session",
             Self::OutOfRange => "proof outside valid step range",
         };
         f.write_str(msg)
