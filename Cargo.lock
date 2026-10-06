@@ -284,22 +284,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "63b8176103e19a2643978565ca18b50549f6101881c443590420e4dc998a3c69"
 
 [[package]]
-name = "rs-tlph"
-version = "0.1.0"
-dependencies = [
- "base64",
- "blake3",
- "http",
- "num-traits",
- "serde",
- "serde_json",
- "serde_json_canonicalizer",
- "serde_qs",
- "traversev",
- "ulid",
-]
-
-[[package]]
 name = "rustversion"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -434,12 +418,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "tlph"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "blake3",
+ "http",
+ "num-traits",
+ "serde",
+ "serde_json",
+ "serde_json_canonicalizer",
+ "serde_qs",
+ "traversev",
+ "ulid",
+]
+
+[[package]]
 name = "traversev"
-version = "0.1.0-alpha.2"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a8db9be538454e54bc873a3e232889e2e9cfbdb1281129700dd58887c1e9930"
+checksum = "6491a739d3f256e06c38a2883eb4504efce2fde17557bae5cf81eac613670016"
 dependencies = [
  "blake3",
+ "num-traits",
  "salsa20",
  "subtle",
 ]

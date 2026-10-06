@@ -3,10 +3,12 @@ use traversev;
 
 use crate::errors::TlphError;
 
+pub type TvParams = traversev::Params;
+
 /// Time-limited Proof-of-Humanity (TLPH) parameters.
 #[derive(Copy, Clone)]
 pub struct Params {
-    tv: traversev::Params,
+    tv: TvParams,
     x: u64,
     l: u64,
     t0: u64,
@@ -14,7 +16,7 @@ pub struct Params {
 
 impl Params {
     /// Default TraverseV parameters.
-    pub const DEFAULT_TV: traversev::Params = traversev::Params::DEFAULT;
+    pub const DEFAULT_TV: TvParams = TvParams::DEFAULT;
 
     /// Default time step width in seconds `x`.
     pub const DEFAULT_X: u64 = 30;
@@ -52,7 +54,7 @@ impl Params {
     /// - `l`: time step count. Between 1 and (2^16) - 1.
     /// - `t0`: optional unix time from which to start counting time steps.
     pub fn new(
-        tv: traversev::Params,
+        tv: TvParams,
         x: u64,
         l: u64,
         t0: Option<u64>,
@@ -79,7 +81,7 @@ impl Params {
     }
 
     /// TraverseV parameters.
-    pub const fn tv(&self) -> traversev::Params {
+    pub const fn tv(&self) -> TvParams {
         self.tv
     }
 
