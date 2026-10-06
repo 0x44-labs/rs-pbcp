@@ -1,4 +1,5 @@
 mod errors;
+mod nonce;
 mod params;
 mod solution;
 mod uri;
