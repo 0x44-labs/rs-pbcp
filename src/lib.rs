@@ -6,30 +6,24 @@ mod uri;
 
 use blake3::Hasher;
 use http::Uri;
-use num_traits::{FromBytes, ToBytes};
-use std::marker::PhantomData;
 use traversev::TraverseV;
 use ulid::Ulid;
 
 pub use crate::errors::TlphError;
+pub use crate::nonce::Nonce;
 pub use crate::params::Params;
-pub use crate::solution::{Grid, Solution};
+pub use crate::solution::Solution;
 use crate::uri::{Challenge, Proof};
 
-pub struct Tlph<T> {
+pub struct Tlph {
     id: Ulid,
     tv: TraverseV,
     nonce: Vec<u8>,
     start: u64,
     params: Params,
-    _marker: PhantomData<T>,
 }
 
-impl<T> Tlph<T>
-where
-    T: Copy + ToBytes + FromBytes,
-    for<'a> <T as FromBytes>::Bytes: TryFrom<&'a [u8]>,
-{
+impl Tlph {
     const CONTEXT: &str = "TIME_LIMITED_PROOF_OF_HUMANITY";
 
     pub fn new(nonce: Vec<u8>, params: &Params) -> Self {
@@ -50,7 +44,6 @@ where
             nonce,
             params: *params,
             start,
-            _marker: PhantomData,
         }
     }
 
@@ -74,7 +67,6 @@ where
             nonce,
             params,
             start: challenge.start(),
-            _marker: PhantomData,
         })
     }
 
@@ -89,9 +81,9 @@ where
         Ok(challenge)
     }
 
-    pub fn prove(&self, solution: &Solution<T>) -> Result<Uri, TlphError> {
+    pub fn prove(&self, solution: &Solution) -> Result<Uri, TlphError> {
         let input = solution.to_bytes()?;
-        let nonce = self.tv.mine(&input);
+        let nonce: Nonce = self.tv.mine(&input, Nonce::default(), 1);
 
         let proof = Proof::build_uri(self.id, nonce, solution)?;
         Ok(proof)
@@ -103,7 +95,7 @@ where
     }
 
     pub fn verify_at(&self, uri: &Uri, step: u64) -> Result<bool, TlphError> {
-        let proof = Proof::<T>::from_uri(uri)?;
+        let proof = Proof::from_uri(uri)?;
         if proof.id() != self.id {
             return Err(TlphError::WrongSession);
         }

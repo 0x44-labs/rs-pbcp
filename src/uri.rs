@@ -1,5 +1,4 @@
 use http::{Uri, uri::PathAndQuery};
-use num_traits::{FromBytes, ToBytes};
 use serde::{Deserialize, Serialize};
 use serde_qs;
 use std::str::FromStr;
@@ -124,21 +123,17 @@ struct ChallengeWire {
 
 impl Wire for ChallengeWire {}
 
-pub struct Proof<T> {
+pub struct Proof {
     id: Ulid,
     nonce: Nonce,
-    solution: Solution<T>,
+    solution: Solution,
 }
 
-impl<T> Proof<T>
-where
-    T: Copy + ToBytes + FromBytes,
-    for<'a> <T as FromBytes>::Bytes: TryFrom<&'a [u8]>,
-{
+impl Proof {
     pub fn build_uri(
         id: Ulid,
         nonce: Nonce,
-        solution: &Solution<T>,
+        solution: &Solution,
     ) -> Result<Uri, TlphError> {
         let wire = ProofWire {
             id,
@@ -163,7 +158,7 @@ where
         Ok(Proof {
             id: wire.id,
             nonce: Nonce::from(wire.nonce),
-            solution: Solution::<T>::from_bytes(&wire.solution)?,
+            solution: Solution::from_bytes(&wire.solution)?,
         })
     }
 
@@ -175,7 +170,7 @@ where
         self.nonce
     }
 
-    pub fn solution(&self) -> Solution<T> {
+    pub fn solution(&self) -> Solution {
         self.solution.clone()
     }
 }
