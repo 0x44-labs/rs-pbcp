@@ -1,17 +1,43 @@
+/// Errors returned by TLPH.
 #[derive(Debug)]
 pub enum TlphError {
+    /// Time step width is too small.
     StepTooSmall,
+
+    /// Time step width is too big.
     StepTooBig,
+
+    /// Time step count is too low.
     StepsTooFew,
+
+    /// Time step count is too high.
     StepsTooMany,
+
+    /// Solution could not be JSON serialised/deserialised.
     Json(serde_json::Error),
+
+    /// Could not serialise/deserialise querystring.
     QueryString(serde_qs::Error),
+
+    /// Failed to build URI.
     UriBuilder(http::Error),
+
+    /// Unable to construct path and query.
     PathAndQuery(http::uri::InvalidUri),
+
+    /// Invalid parameters for TraverseV.
     TvParams(traversev::TraverseVErr),
+
+    /// Parsed URI invalid for TLPH.
     UriParse,
+
+    /// URI host invalid for TLPH.
     InvalidHost,
+
+    /// Proof does not match current session.
     WrongSession,
+
+    /// Proof outside valid step range.
     OutOfRange,
 }
 
@@ -27,7 +53,7 @@ impl std::fmt::Display for TlphError {
             Self::UriBuilder(e) => return core::fmt::Display::fmt(e, f),
             Self::PathAndQuery(e) => return core::fmt::Display::fmt(e, f),
             Self::TvParams(e) => return core::fmt::Display::fmt(e, f),
-            Self::UriParse => "not a valid tlph uri",
+            Self::UriParse => "parsed uri invalid for tlph",
             Self::InvalidHost => "uri host invalid for tlph",
             Self::WrongSession => "proof does not match current session",
             Self::OutOfRange => "proof outside valid step range",
@@ -43,7 +69,7 @@ impl std::error::Error for TlphError {
             Self::QueryString(e) => Some(e),
             Self::UriBuilder(e) => Some(e),
             Self::PathAndQuery(e) => Some(e),
-            //Self::TvParams(e) => Some(e),
+            Self::TvParams(e) => Some(e),
             _ => None,
         }
     }
