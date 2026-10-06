@@ -6,23 +6,9 @@ use std::str::FromStr;
 use ulid::Ulid;
 
 use crate::errors::TlphError;
+use crate::nonce::Nonce;
 use crate::params::Params;
 use crate::solution::Solution;
-
-macro_rules! host_query {
-    ($uri:expr, $host:literal) => {{
-        if $uri.scheme_str() != Some("tlph") {
-            return Err(TlphError::UriParse);
-        }
-        if $uri.host() != Some($host) {
-            return Err(TlphError::InvalidHost);
-        }
-        match $uri.query() {
-            Some(q) => q,
-            None => return Err(TlphError::UriParse),
-        }
-    }};
-}
 
 trait Wire: Serialize {
     fn path_and_query(&self) -> Result<PathAndQuery, TlphError>
@@ -74,7 +60,7 @@ impl Challenge {
     }
 
     pub fn from_uri(uri: &Uri) -> Result<Self, TlphError> {
-        let query = host_query!(uri, "challenge");
+        let query = host_query(uri, "challenge")?;
         let wire: ChallengeWire = serde_qs::from_str(query)?;
 
         let tv = traversev::Params::new(
@@ -140,7 +126,7 @@ impl Wire for ChallengeWire {}
 
 pub struct Proof<T> {
     id: Ulid,
-    nonce: u128,
+    nonce: Nonce,
     solution: Solution<T>,
 }
 
@@ -151,12 +137,12 @@ where
 {
     pub fn build_uri(
         id: Ulid,
-        nonce: u128,
+        nonce: Nonce,
         solution: &Solution<T>,
     ) -> Result<Uri, TlphError> {
         let wire = ProofWire {
             id,
-            nonce,
+            nonce: u128::from(nonce),
             solution: solution.to_bytes()?,
         };
 
@@ -171,12 +157,12 @@ where
     }
 
     pub fn from_uri(uri: &Uri) -> Result<Self, TlphError> {
-        let query = host_query!(uri, "proof");
+        let query = host_query(uri, "proof")?;
         let wire: ProofWire = serde_qs::from_str(query)?;
 
         Ok(Proof {
             id: wire.id,
-            nonce: wire.nonce,
+            nonce: Nonce::from(wire.nonce),
             solution: Solution::<T>::from_bytes(&wire.solution)?,
         })
     }
@@ -185,7 +171,7 @@ where
         self.id.clone()
     }
 
-    pub const fn nonce(&self) -> u128 {
+    pub const fn nonce(&self) -> Nonce {
         self.nonce
     }
 
@@ -205,6 +191,19 @@ struct ProofWire {
 }
 
 impl Wire for ProofWire {}
+
+fn host_query<'a>(uri: &'a Uri, host: &str) -> Result<&'a str, TlphError> {
+    if uri.scheme_str() != Some("tlph") {
+        return Err(TlphError::UriParse);
+    }
+    if uri.host() != Some(host) {
+        return Err(TlphError::InvalidHost);
+    }
+    match uri.query() {
+        Some(q) => Ok(q),
+        None => return Err(TlphError::UriParse),
+    }
+}
 
 mod base64url {
     use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
