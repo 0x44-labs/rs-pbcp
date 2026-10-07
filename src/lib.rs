@@ -11,15 +11,15 @@ use ulid::Ulid;
 
 pub use crate::errors::TlphError;
 pub use crate::nonce::Nonce;
-pub use crate::params::Params;
+pub use crate::params::{Params, TvParams};
 pub use crate::solution::Solution;
 use crate::uri::{Challenge, Proof};
 
 pub struct Tlph {
     id: Ulid,
-    tv: TraverseV,
-    nonce: Vec<u8>,
     start: u64,
+    nonce: Vec<u8>,
+    tv: TraverseV,
     params: Params,
 }
 
@@ -40,10 +40,10 @@ impl Tlph {
 
         Self {
             id,
-            tv: permissioned,
-            nonce,
-            params: *params,
             start,
+            nonce,
+            tv: permissioned,
+            params: *params,
         }
     }
 
@@ -63,18 +63,18 @@ impl Tlph {
 
         Ok(Self {
             id,
-            tv: permissioned,
-            nonce,
-            params,
             start: challenge.start(),
+            nonce,
+            tv: permissioned,
+            params,
         })
     }
 
     pub fn challenge(&self) -> Result<Uri, TlphError> {
         let challenge = Challenge::build_uri(
             self.id,
-            &self.nonce,
             self.start,
+            &self.nonce,
             &self.params,
         )?;
 
@@ -85,7 +85,7 @@ impl Tlph {
         let input = solution.to_bytes()?;
         let nonce: Nonce = self.tv.mine(&input, Nonce::default(), 1);
 
-        let proof = Proof::build_uri(self.id, nonce, solution)?;
+        let proof = Proof::build_uri(self.id, solution, nonce)?;
         Ok(proof)
     }
 

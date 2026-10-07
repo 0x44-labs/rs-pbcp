@@ -22,23 +22,23 @@ trait Wire: Serialize {
 
 pub(crate) struct Challenge {
     id: Ulid,
-    nonce: Vec<u8>,
     start: u64,
+    nonce: Vec<u8>,
     params: Params,
 }
 
 impl Challenge {
     pub(crate) fn build_uri(
         id: Ulid,
-        nonce: &[u8],
         start: u64,
+        nonce: &[u8],
         params: &Params,
     ) -> Result<Uri, TlphError> {
         let tv = params.tv();
         let wire = ChallengeWire {
             id,
-            nonce: nonce.to_vec(),
             start,
+            nonce: nonce.to_vec(),
             m_cost: non_default(tv.m_cost(), TvParams::DEFAULT_M),
             t_cost: non_default(tv.t_cost(), TvParams::DEFAULT_T),
             e_cost: non_default(tv.e_cost(), TvParams::DEFAULT_E),
@@ -79,8 +79,8 @@ impl Challenge {
 
         Ok(Challenge {
             id: wire.id,
-            nonce: wire.nonce,
             start: wire.start,
+            nonce: wire.nonce,
             params,
         })
     }
@@ -89,12 +89,12 @@ impl Challenge {
         self.id.clone()
     }
 
-    pub(crate) fn nonce(&self) -> Vec<u8> {
-        self.nonce.clone()
-    }
-
     pub(crate) const fn start(&self) -> u64 {
         self.start
+    }
+
+    pub(crate) fn nonce(&self) -> Vec<u8> {
+        self.nonce.clone()
     }
 
     pub(crate) fn params(&self) -> Params {
@@ -106,9 +106,9 @@ impl Challenge {
 #[serde(deny_unknown_fields)]
 struct ChallengeWire {
     id: Ulid,
+    start: u64,
     #[serde(with = "base64url")]
     nonce: Vec<u8>,
-    start: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     m_cost: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -129,15 +129,15 @@ impl Wire for ChallengeWire {}
 
 pub(crate) struct Proof {
     id: Ulid,
-    nonce: Nonce,
     solution: Solution,
+    nonce: Nonce,
 }
 
 impl Proof {
     pub(crate) fn build_uri(
         id: Ulid,
-        nonce: Nonce,
         solution: &Solution,
+        nonce: Nonce,
     ) -> Result<Uri, TlphError> {
         let wire = ProofWire {
             id,
@@ -161,8 +161,8 @@ impl Proof {
 
         Ok(Proof {
             id: wire.id,
-            nonce: Nonce::from(wire.nonce),
             solution: Solution::from_bytes(&wire.solution)?,
+            nonce: Nonce::from(wire.nonce),
         })
     }
 
@@ -170,12 +170,12 @@ impl Proof {
         self.id.clone()
     }
 
-    pub(crate) const fn nonce(&self) -> Nonce {
-        self.nonce
-    }
-
     pub(crate) fn solution(&self) -> Solution {
         self.solution.clone()
+    }
+
+    pub(crate) const fn nonce(&self) -> Nonce {
+        self.nonce
     }
 }
 
@@ -183,10 +183,10 @@ impl Proof {
 #[serde(deny_unknown_fields)]
 struct ProofWire {
     id: Ulid,
-    #[serde(with = "base64url_u128")]
-    nonce: u128,
     #[serde(with = "base64url")]
     solution: Vec<u8>,
+    #[serde(with = "base64url_u128")]
+    nonce: u128,
 }
 
 impl Wire for ProofWire {}
