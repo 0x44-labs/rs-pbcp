@@ -20,7 +20,7 @@ trait Wire: Serialize {
     }
 }
 
-pub struct Challenge {
+pub(crate) struct Challenge {
     id: Ulid,
     nonce: Vec<u8>,
     start: u64,
@@ -28,7 +28,7 @@ pub struct Challenge {
 }
 
 impl Challenge {
-    pub fn build_uri(
+    pub(crate) fn build_uri(
         id: Ulid,
         nonce: &[u8],
         start: u64,
@@ -58,7 +58,7 @@ impl Challenge {
         Ok(uri)
     }
 
-    pub fn from_uri(uri: &Uri) -> Result<Self, TlphError> {
+    pub(crate) fn from_uri(uri: &Uri) -> Result<Self, TlphError> {
         let query = host_query(uri, "challenge")?;
         let wire: ChallengeWire = serde_qs::from_str(query)?;
 
@@ -85,19 +85,19 @@ impl Challenge {
         })
     }
 
-    pub fn id(&self) -> Ulid {
+    pub(crate) fn id(&self) -> Ulid {
         self.id.clone()
     }
 
-    pub fn nonce(&self) -> Vec<u8> {
+    pub(crate) fn nonce(&self) -> Vec<u8> {
         self.nonce.clone()
     }
 
-    pub const fn start(&self) -> u64 {
+    pub(crate) const fn start(&self) -> u64 {
         self.start
     }
 
-    pub fn params(&self) -> Params {
+    pub(crate) fn params(&self) -> Params {
         self.params.clone()
     }
 }
@@ -123,14 +123,14 @@ struct ChallengeWire {
 
 impl Wire for ChallengeWire {}
 
-pub struct Proof {
+pub(crate) struct Proof {
     id: Ulid,
     nonce: Nonce,
     solution: Solution,
 }
 
 impl Proof {
-    pub fn build_uri(
+    pub(crate) fn build_uri(
         id: Ulid,
         nonce: Nonce,
         solution: &Solution,
@@ -151,7 +151,7 @@ impl Proof {
         Ok(uri)
     }
 
-    pub fn from_uri(uri: &Uri) -> Result<Self, TlphError> {
+    pub(crate) fn from_uri(uri: &Uri) -> Result<Self, TlphError> {
         let query = host_query(uri, "proof")?;
         let wire: ProofWire = serde_qs::from_str(query)?;
 
@@ -162,15 +162,15 @@ impl Proof {
         })
     }
 
-    pub fn id(&self) -> Ulid {
+    pub(crate) fn id(&self) -> Ulid {
         self.id.clone()
     }
 
-    pub const fn nonce(&self) -> Nonce {
+    pub(crate) const fn nonce(&self) -> Nonce {
         self.nonce
     }
 
-    pub fn solution(&self) -> Solution {
+    pub(crate) fn solution(&self) -> Solution {
         self.solution.clone()
     }
 }
@@ -204,14 +204,14 @@ mod base64url {
     use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
     use serde::{Deserialize, Deserializer, Serializer};
 
-    pub fn serialize<S: Serializer>(
+    pub(super) fn serialize<S: Serializer>(
         v: &Vec<u8>,
         s: S,
     ) -> Result<S::Ok, S::Error> {
         s.serialize_str(&URL_SAFE_NO_PAD.encode(v))
     }
 
-    pub fn deserialize<'de, D: Deserializer<'de>>(
+    pub(super) fn deserialize<'de, D: Deserializer<'de>>(
         d: D,
     ) -> Result<Vec<u8>, D::Error> {
         let input = String::deserialize(d)?;
@@ -225,11 +225,14 @@ mod base64url_u128 {
     use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
     use serde::{Deserialize, Deserializer, Serializer};
 
-    pub fn serialize<S: Serializer>(v: &u128, s: S) -> Result<S::Ok, S::Error> {
+    pub(super) fn serialize<S: Serializer>(
+        v: &u128,
+        s: S,
+    ) -> Result<S::Ok, S::Error> {
         s.serialize_str(&URL_SAFE_NO_PAD.encode(v.to_le_bytes()))
     }
 
-    pub fn deserialize<'de, D: Deserializer<'de>>(
+    pub(super) fn deserialize<'de, D: Deserializer<'de>>(
         d: D,
     ) -> Result<u128, D::Error> {
         let input = String::deserialize(d)?;
