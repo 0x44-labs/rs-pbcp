@@ -1,4 +1,7 @@
+use base64::Engine;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use http::{Uri, uri::PathAndQuery};
+use num_traits::ToBytes;
 use serde::{Deserialize, Serialize};
 use serde_qs;
 use std::str::FromStr;
@@ -134,15 +137,19 @@ pub(crate) struct Proof {
 }
 
 impl Proof {
-    pub(crate) fn build_uri(
-        id: Ulid,
-        solution: &Solution,
-        nonce: Nonce,
-    ) -> Result<Uri, TlphError> {
-        let wire = ProofWire {
+    pub fn new(id: Ulid, solution: &Solution, nonce: &Nonce) -> Self {
+        Self {
             id,
-            nonce: u128::from(nonce),
-            solution: solution.to_bytes()?,
+            solution: solution.clone(),
+            nonce: *nonce,
+        }
+    }
+
+    pub(crate) fn to_uri(&self) -> Result<Uri, TlphError> {
+        let wire = ProofWire {
+            id: self.id,
+            nonce: u128::from(self.nonce),
+            solution: self.solution.to_bytes()?,
         };
 
         let p_and_q = wire.path_and_query()?;
@@ -163,6 +170,44 @@ impl Proof {
             id: wire.id,
             solution: Solution::from_bytes(&wire.solution)?,
             nonce: Nonce::from(wire.nonce),
+        })
+    }
+
+    pub(crate) fn to_string(&self) -> Result<String, TlphError> {
+        let id = self.id.to_string();
+        let solution = URL_SAFE_NO_PAD.encode(self.solution.to_bytes()?);
+        let nonce = URL_SAFE_NO_PAD.encode(self.nonce.to_le_bytes());
+
+        Ok(format!("{id}.{solution}.{nonce}"))
+    }
+
+    pub(crate) fn from_string(s: &str) -> Result<Self, TlphError> {
+        let mut parts = s.split(".");
+        let (Some(first), Some(second), Some(third), None) =
+            (parts.next(), parts.next(), parts.next(), parts.next())
+        else {
+            return Err(TlphError::ProofFormat);
+        };
+
+        let id =
+            Ulid::from_string(first).map_err(|_| TlphError::ProofFormat)?;
+
+        let solution_bytes = URL_SAFE_NO_PAD
+            .decode(second)
+            .map_err(|_| TlphError::ProofFormat)?;
+        let solution = Solution::from_bytes(&solution_bytes)?;
+
+        let nonce_bytes: [u8; 16] = URL_SAFE_NO_PAD
+            .decode(third)
+            .map_err(|_| TlphError::ProofFormat)?
+            .try_into()
+            .map_err(|_| TlphError::ProofFormat)?;
+        let nonce = Nonce::from(u128::from_le_bytes(nonce_bytes));
+
+        Ok(Self {
+            id,
+            solution,
+            nonce,
         })
     }
 
