@@ -3,6 +3,7 @@ use traversev;
 
 use crate::errors::TlphError;
 
+/// Alias for TraverseV proof-of-work parameters.
 pub type TvParams = traversev::Params;
 
 /// Time-limited Proof-of-Humanity (TLPH) parameters.
@@ -62,7 +63,7 @@ impl Params {
         if x < Self::MIN_X {
             return Err(TlphError::StepTooSmall);
         }
-        if x < Self::MAX_X {
+        if x > Self::MAX_X {
             return Err(TlphError::StepTooBig);
         }
         if l < Self::MIN_L {

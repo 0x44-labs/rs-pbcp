@@ -6,7 +6,7 @@ use ulid::Ulid;
 
 use crate::errors::TlphError;
 use crate::nonce::Nonce;
-use crate::params::Params;
+use crate::params::{Params, TvParams};
 use crate::solution::Solution;
 
 trait Wire: Serialize {
@@ -39,13 +39,13 @@ impl Challenge {
             id,
             nonce: nonce.to_vec(),
             start,
-            m_cost: Some(tv.m_cost()),
-            t_cost: Some(tv.t_cost()),
-            e_cost: Some(tv.e_cost()),
-            n_cost: Some(tv.n_cost()),
-            x: Some(params.x()),
-            l: Some(params.l()),
-            t0: Some(params.t0()),
+            m_cost: non_default(tv.m_cost(), TvParams::DEFAULT_M),
+            t_cost: non_default(tv.t_cost(), TvParams::DEFAULT_T),
+            e_cost: non_default(tv.e_cost(), TvParams::DEFAULT_E),
+            n_cost: non_default(tv.n_cost(), TvParams::DEFAULT_N),
+            x: non_default(params.x(), Params::DEFAULT_X),
+            l: non_default(params.l(), Params::DEFAULT_L),
+            t0: non_default(params.t0(), Params::DEFAULT_T0),
         };
 
         let p_and_q = wire.path_and_query()?;
@@ -109,9 +109,13 @@ struct ChallengeWire {
     #[serde(with = "base64url")]
     nonce: Vec<u8>,
     start: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
     m_cost: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     t_cost: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     e_cost: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     n_cost: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     x: Option<u64>,
@@ -186,6 +190,10 @@ struct ProofWire {
 }
 
 impl Wire for ProofWire {}
+
+fn non_default<T: PartialEq>(value: T, default: T) -> Option<T> {
+    (value != default).then_some(value)
+}
 
 fn host_query<'a>(uri: &'a Uri, host: &str) -> Result<&'a str, TlphError> {
     if uri.scheme_str() != Some("tlph") {
