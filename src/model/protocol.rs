@@ -8,7 +8,7 @@ use crate::errors::TlphError;
 use crate::model::{ChallengeWire, ProofWire, Solution, Wire};
 use crate::params::{Params, TvParams};
 
-pub(crate) struct Challenge {
+pub struct Challenge {
     id: Ulid,
     start: u64,
     nonce: Vec<u8>,
@@ -16,24 +16,28 @@ pub(crate) struct Challenge {
 }
 
 impl Challenge {
-    pub(crate) fn build_uri(
-        id: Ulid,
-        start: u64,
-        nonce: &[u8],
-        params: Params,
-    ) -> Result<Uri, TlphError> {
-        let tv = params.tv();
-        let wire = ChallengeWire {
+    pub fn new(id: Ulid, start: u64, nonce: &[u8], params: Params) -> Self {
+        Self {
             id,
             start,
             nonce: nonce.to_vec(),
+            params,
+        }
+    }
+
+    pub fn to_uri(&self) -> Result<Uri, TlphError> {
+        let tv = self.params.tv();
+        let wire = ChallengeWire {
+            id: self.id,
+            start: self.start,
+            nonce: self.nonce.to_vec(),
             m_cost: non_default(tv.m_cost(), TvParams::DEFAULT_M),
             t_cost: non_default(tv.t_cost(), TvParams::DEFAULT_T),
             e_cost: non_default(tv.e_cost(), TvParams::DEFAULT_E),
             n_cost: non_default(tv.n_cost(), TvParams::DEFAULT_N),
-            x: non_default(params.x(), Params::DEFAULT_X),
-            l: non_default(params.l(), Params::DEFAULT_L),
-            t0: non_default(params.t0(), Params::DEFAULT_T0),
+            x: non_default(self.params.x(), Params::DEFAULT_X),
+            l: non_default(self.params.l(), Params::DEFAULT_L),
+            t0: non_default(self.params.t0(), Params::DEFAULT_T0),
         };
 
         let p_and_q = wire.path_and_query()?;
@@ -46,7 +50,7 @@ impl Challenge {
         Ok(uri)
     }
 
-    pub(crate) fn from_uri(uri: &Uri) -> Result<Self, TlphError> {
+    pub fn from_uri(uri: &Uri) -> Result<Self, TlphError> {
         let query = host_query(uri, "challenge")?;
         let wire: ChallengeWire = serde_qs::from_str(query)?;
 
@@ -73,19 +77,19 @@ impl Challenge {
         })
     }
 
-    pub(crate) const fn id(&self) -> Ulid {
+    pub const fn id(&self) -> Ulid {
         self.id
     }
 
-    pub(crate) const fn start(&self) -> u64 {
+    pub const fn start(&self) -> u64 {
         self.start
     }
 
-    pub(crate) fn nonce(&self) -> Vec<u8> {
+    pub fn nonce(&self) -> Vec<u8> {
         self.nonce.clone()
     }
 
-    pub(crate) const fn params(&self) -> Params {
+    pub const fn params(&self) -> Params {
         self.params
     }
 }
