@@ -1,12 +1,11 @@
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use http::Uri;
-use num_traits::ToBytes;
 use serde_qs;
 use ulid::Ulid;
 
 use crate::errors::TlphError;
-use crate::model::{ChallengeWire, Nonce, ProofWire, Solution, Wire};
+use crate::model::{ChallengeWire, ProofWire, Solution, Wire};
 use crate::params::{Params, TvParams};
 
 pub(crate) struct Challenge {
@@ -21,7 +20,7 @@ impl Challenge {
         id: Ulid,
         start: u64,
         nonce: &[u8],
-        params: &Params,
+        params: Params,
     ) -> Result<Uri, TlphError> {
         let tv = params.tv();
         let wire = ChallengeWire {
@@ -74,8 +73,8 @@ impl Challenge {
         })
     }
 
-    pub(crate) fn id(&self) -> Ulid {
-        self.id.clone()
+    pub(crate) const fn id(&self) -> Ulid {
+        self.id
     }
 
     pub(crate) const fn start(&self) -> u64 {
@@ -86,30 +85,30 @@ impl Challenge {
         self.nonce.clone()
     }
 
-    pub(crate) fn params(&self) -> Params {
-        self.params.clone()
+    pub(crate) const fn params(&self) -> Params {
+        self.params
     }
 }
 
-pub(crate) struct Proof {
+pub struct Proof {
     id: Ulid,
     solution: Solution,
-    nonce: Nonce,
+    nonce: u128,
 }
 
 impl Proof {
-    pub fn new(id: Ulid, solution: &Solution, nonce: &Nonce) -> Self {
+    pub fn new(id: Ulid, solution: &Solution, nonce: u128) -> Self {
         Self {
-            id,
+            id: id,
             solution: solution.clone(),
-            nonce: *nonce,
+            nonce,
         }
     }
 
-    pub(crate) fn to_uri(&self) -> Result<Uri, TlphError> {
+    pub fn to_uri(&self) -> Result<Uri, TlphError> {
         let wire = ProofWire {
             id: self.id,
-            nonce: u128::from(self.nonce),
+            nonce: self.nonce,
             solution: self.solution.to_bytes()?,
         };
 
@@ -123,18 +122,18 @@ impl Proof {
         Ok(uri)
     }
 
-    pub(crate) fn from_uri(uri: &Uri) -> Result<Self, TlphError> {
+    pub fn from_uri(uri: &Uri) -> Result<Self, TlphError> {
         let query = host_query(uri, "proof")?;
         let wire: ProofWire = serde_qs::from_str(query)?;
 
         Ok(Proof {
             id: wire.id,
             solution: Solution::from_bytes(&wire.solution)?,
-            nonce: Nonce::from(wire.nonce),
+            nonce: wire.nonce,
         })
     }
 
-    pub(crate) fn to_string(&self) -> Result<String, TlphError> {
+    pub fn to_string(&self) -> Result<String, TlphError> {
         let id = self.id.to_string();
         let solution = URL_SAFE_NO_PAD.encode(self.solution.to_bytes()?);
         let nonce = URL_SAFE_NO_PAD.encode(self.nonce.to_le_bytes());
@@ -142,7 +141,7 @@ impl Proof {
         Ok(format!("{id}.{solution}.{nonce}"))
     }
 
-    pub(crate) fn from_string(s: &str) -> Result<Self, TlphError> {
+    pub fn from_string(s: &str) -> Result<Self, TlphError> {
         let mut parts = s.split(".");
         let (Some(first), Some(second), Some(third), None) =
             (parts.next(), parts.next(), parts.next(), parts.next())
@@ -163,7 +162,7 @@ impl Proof {
             .map_err(|_| TlphError::ProofFormat)?
             .try_into()
             .map_err(|_| TlphError::ProofFormat)?;
-        let nonce = Nonce::from(u128::from_le_bytes(nonce_bytes));
+        let nonce = u128::from_le_bytes(nonce_bytes);
 
         Ok(Self {
             id,
@@ -172,15 +171,15 @@ impl Proof {
         })
     }
 
-    pub(crate) fn id(&self) -> Ulid {
-        self.id.clone()
+    pub const fn id(&self) -> Ulid {
+        self.id
     }
 
-    pub(crate) fn solution(&self) -> Solution {
+    pub fn solution(&self) -> Solution {
         self.solution.clone()
     }
 
-    pub(crate) const fn nonce(&self) -> Nonce {
+    pub const fn nonce(&self) -> u128 {
         self.nonce
     }
 }
