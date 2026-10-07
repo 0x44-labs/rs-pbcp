@@ -8,7 +8,7 @@ use std::str::FromStr;
 use ulid::Ulid;
 
 use crate::errors::TlphError;
-use crate::nonce::Nonce;
+use crate::model::Nonce;
 use crate::params::{Params, TvParams};
 use crate::solution::Solution;
 
