@@ -1,8 +1,8 @@
-mod nonce;
+mod counter;
 mod protocol;
 mod solution;
 mod wire;
 
-pub use nonce::Nonce;
+pub use counter::Counter;
 pub use solution::Solution;
 pub(crate) use wire::{ChallengeWire, ProofWire, Wire};
