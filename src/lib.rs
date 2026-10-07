@@ -1,19 +1,14 @@
 mod errors;
-mod nonce;
+mod model;
 mod params;
-mod solution;
-mod uri;
 
 use blake3::Hasher;
-use http::Uri;
 use traversev::TraverseV;
 use ulid::Ulid;
 
 pub use crate::errors::TlphError;
-pub use crate::nonce::Nonce;
+pub use crate::model::{Challenge, Counter, Proof, Solution};
 pub use crate::params::{Params, TvParams};
-pub use crate::solution::Solution;
-use crate::uri::{Challenge, Proof};
 
 pub struct Tlph {
     id: Ulid,
@@ -47,8 +42,11 @@ impl Tlph {
         }
     }
 
-    pub fn new_from_uri(uri: &Uri) -> Result<Self, TlphError> {
-        let challenge = Challenge::from_uri(uri)?;
+    pub fn to_challenge(&self) -> Challenge {
+        Challenge::new(self.id, self.start, &self.nonce, self.params)
+    }
+
+    pub fn from_challenge(challenge: &Challenge) -> Result<Self, TlphError> {
         let id = challenge.id();
         let nonce = challenge.nonce();
         let params = challenge.params();
@@ -70,38 +68,26 @@ impl Tlph {
         })
     }
 
-    pub fn challenge(&self) -> Result<Uri, TlphError> {
-        let challenge = Challenge::build_uri(
-            self.id,
-            self.start,
-            &self.nonce,
-            &self.params,
-        )?;
-
-        Ok(challenge)
-    }
-
-    pub fn prove(&self, solution: &Solution) -> Result<Uri, TlphError> {
+    pub fn prove(&self, solution: &Solution) -> Result<Proof, TlphError> {
         let input = solution.to_bytes()?;
-        let nonce: Nonce = self.tv.mine(&input, Nonce::default(), 1);
+        let nonce: u128 = self.tv.mine(&input, Counter::default(), 1);
 
-        let proof = Proof::build_uri(self.id, solution, nonce)?;
+        let proof = Proof::new(self.id, solution, nonce);
         Ok(proof)
     }
 
-    pub fn verify(&self, uri: &Uri) -> Result<bool, TlphError> {
-        let current = self.params.time_step(None);
-        self.verify_at(uri, current)
-    }
-
-    pub fn verify_at(&self, uri: &Uri, step: u64) -> Result<bool, TlphError> {
-        let proof = Proof::from_uri(uri)?;
+    pub fn verify(
+        &self,
+        proof: &Proof,
+        step: Option<u64>,
+    ) -> Result<bool, TlphError> {
         if proof.id() != self.id {
             return Err(TlphError::WrongSession);
         }
 
+        let current = step.unwrap_or(self.params.time_step(None));
         let max_step = self.start + self.params.l() - 1;
-        let upper = step.min(max_step);
+        let upper = current.min(max_step);
         let valid_range = self.start..=upper;
 
         if !valid_range.contains(&proof.solution().step()) {
@@ -112,8 +98,8 @@ impl Tlph {
         Ok(self.tv.verify(&input, proof.nonce()))
     }
 
-    pub fn id(&self) -> Ulid {
-        self.id.clone()
+    pub const fn id(&self) -> Ulid {
+        self.id
     }
 
     pub fn nonce(&self) -> Vec<u8> {
@@ -124,8 +110,8 @@ impl Tlph {
         self.start
     }
 
-    pub fn params(&self) -> Params {
-        self.params.clone()
+    pub const fn params(&self) -> Params {
+        self.params
     }
 
     fn derive_secret(id: &Ulid, nonce: &Vec<u8>, params: &Params) -> [u8; 32] {
