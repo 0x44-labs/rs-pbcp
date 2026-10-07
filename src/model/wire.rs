@@ -1,0 +1,102 @@
+use http::uri::PathAndQuery;
+use serde::{Deserialize, Serialize};
+use std::str::FromStr;
+use ulid::Ulid;
+
+use crate::errors::TlphError;
+
+pub(crate) trait Wire: Serialize {
+    fn path_and_query(&self) -> Result<PathAndQuery, TlphError>
+    where
+        Self: Sized,
+    {
+        let querystring = serde_qs::to_string(self)?;
+        let p_and_q = format!("/?{}", querystring);
+        Ok(PathAndQuery::from_str(&p_and_q)?)
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ChallengeWire {
+    pub(crate) id: Ulid,
+    pub(crate) start: u64,
+    #[serde(with = "base64url")]
+    pub(crate) nonce: Vec<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) m_cost: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) t_cost: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) e_cost: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) n_cost: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) x: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) l: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) t0: Option<u64>,
+}
+
+impl Wire for ChallengeWire {}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ProofWire {
+    pub(crate) id: Ulid,
+    #[serde(with = "base64url")]
+    pub(crate) solution: Vec<u8>,
+    #[serde(with = "base64url_u128")]
+    pub(crate) nonce: u128,
+}
+
+impl Wire for ProofWire {}
+
+mod base64url {
+    use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub(super) fn serialize<S: Serializer>(
+        v: &Vec<u8>,
+        s: S,
+    ) -> Result<S::Ok, S::Error> {
+        s.serialize_str(&URL_SAFE_NO_PAD.encode(v))
+    }
+
+    pub(super) fn deserialize<'de, D: Deserializer<'de>>(
+        d: D,
+    ) -> Result<Vec<u8>, D::Error> {
+        let input = String::deserialize(d)?;
+        URL_SAFE_NO_PAD
+            .decode(&input)
+            .map_err(|e| <D::Error as serde::de::Error>::custom(e))
+    }
+}
+
+mod base64url_u128 {
+    use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub(super) fn serialize<S: Serializer>(
+        v: &u128,
+        s: S,
+    ) -> Result<S::Ok, S::Error> {
+        s.serialize_str(&URL_SAFE_NO_PAD.encode(v.to_le_bytes()))
+    }
+
+    pub(super) fn deserialize<'de, D: Deserializer<'de>>(
+        d: D,
+    ) -> Result<u128, D::Error> {
+        let input = String::deserialize(d)?;
+        let bytes = URL_SAFE_NO_PAD
+            .decode(&input)
+            .map_err(|e| <D::Error as serde::de::Error>::custom(e))?;
+        let nonce: [u8; 16] = bytes.try_into().map_err(|_| {
+            <D::Error as serde::de::Error>::custom(
+                "nonce must decode to 16 bytes",
+            )
+        })?;
+        Ok(u128::from_le_bytes(nonce))
+    }
+}
