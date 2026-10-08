@@ -36,6 +36,12 @@
 //!     assert!(result.is_ok());
 //! }
 //! ```
+//!
+//! ## Features
+//!
+//! The `zeroize` feature (disabled by default) implements `Zeroize` and
+//! `ZeroizeOnDrop` for `Solution` and `Proof`, and zeroises intermediate
+//! values on a best-effort basis.
 mod errors;
 mod model;
 mod params;
@@ -47,7 +53,7 @@ use ulid::Ulid;
 use zeroize::Zeroize;
 
 pub use crate::errors::TlphError;
-pub use crate::model::{Challenge, Counter, Proof, Solution};
+pub use crate::model::{Challenge, Counter, Proof, Solution, SolutionBuilder};
 pub use crate::params::{Params, TvParams};
 
 /// Time-limited Proof of Humanity (TLPH) instance.
