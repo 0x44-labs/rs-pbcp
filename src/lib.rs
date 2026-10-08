@@ -71,7 +71,7 @@ pub struct Tlph {
 }
 
 impl Tlph {
-    const CONTEXT: &str = "TIME_LIMITED_PROOF_OF_HUMANITY";
+    const CONTEXT: &str = "TLPH";
 
     /// Create a new [Tlph] instance with a fresh session identifier, the
     /// current time step as its start, and the given nonce and parameters.
