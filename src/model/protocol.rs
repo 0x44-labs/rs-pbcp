@@ -98,9 +98,9 @@ impl Challenge {
         self.start
     }
 
-    /// Returns a clone of the nonce.
-    pub fn nonce(&self) -> Vec<u8> {
-        self.nonce.clone()
+    /// Returns a reference to the nonce.
+    pub const fn nonce(&self) -> &Vec<u8> {
+        &self.nonce
     }
 
     /// Returns the parameters.
@@ -218,9 +218,9 @@ impl Proof {
         self.id
     }
 
-    /// Returns a clone of the solution.
-    pub fn solution(&self) -> Solution {
-        self.solution.clone()
+    /// Returns a reference to the solution.
+    pub const fn solution(&self) -> &Solution {
+        &self.solution
     }
 
     /// Returns the nonce.

@@ -47,9 +47,9 @@ impl Solution {
         self.step
     }
 
-    /// Returns a clone of the payload.
-    pub fn payload(&self) -> Vec<u8> {
-        self.payload.clone()
+    /// Returns a reference to the payload.
+    pub const fn payload(&self) -> &Vec<u8> {
+        &self.payload
     }
 
     /// Returns the value of the named claim, if it exists.

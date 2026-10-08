@@ -124,7 +124,7 @@ impl Tlph {
         Self {
             id,
             start: challenge.start(),
-            nonce,
+            nonce: nonce.clone(),
             tv: permissioned,
             params,
         }
@@ -201,9 +201,9 @@ impl Tlph {
         self.id
     }
 
-    /// Returns a clone of the challenge nonce.
-    pub fn nonce(&self) -> Vec<u8> {
-        self.nonce.clone()
+    /// Returns a reference to the challenge nonce.
+    pub const fn nonce(&self) -> &Vec<u8> {
+        &self.nonce
     }
 
     /// Returns the starting time step.
