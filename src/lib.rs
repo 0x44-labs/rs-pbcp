@@ -1,3 +1,4 @@
+#![cfg_attr(not(feature = "zeroize"), allow(unused_mut))]
 //! ## Example
 //! ```
 //! use tlph::{Params, Solution, Tlph, TvParams};
@@ -42,6 +43,8 @@ mod params;
 use blake3::Hasher;
 use traversev::TraverseV;
 use ulid::Ulid;
+#[cfg(feature = "zeroize")]
+use zeroize::Zeroize;
 
 pub use crate::errors::TlphError;
 pub use crate::model::{Challenge, Counter, Proof, Solution};
@@ -76,13 +79,16 @@ impl Tlph {
         let id = Ulid::generate();
         let start = params.time_step(None);
 
-        let secret = Self::derive_secret(&id, &nonce, params);
+        let mut secret = Self::derive_secret(&id, &nonce, params);
         let traversev_params = params.tv();
         let permissioned = TraverseV::new_permissioned(
             &secret,
             Self::CONTEXT,
             traversev_params,
         );
+
+        #[cfg(feature = "zeroize")]
+        secret.zeroize();
 
         Self {
             id,
@@ -104,13 +110,16 @@ impl Tlph {
         let nonce = challenge.nonce();
         let params = challenge.params();
 
-        let secret = Self::derive_secret(&id, &nonce, &params);
+        let mut secret = Self::derive_secret(&id, &nonce, &params);
         let traversev_params = params.tv();
         let permissioned = TraverseV::new_permissioned(
             &secret,
             Self::CONTEXT,
             traversev_params,
         );
+
+        #[cfg(feature = "zeroize")]
+        secret.zeroize();
 
         Self {
             id,
@@ -123,10 +132,17 @@ impl Tlph {
 
     /// Mine a [Proof] of the given [Solution] for this session.
     pub fn prove(&self, solution: &Solution) -> Result<Proof, TlphError> {
-        let input = solution.to_bytes()?;
-        let nonce: u128 = self.tv.mine(&input, Counter::default(), 1);
+        let mut input = solution.to_bytes()?;
+        let mut nonce: u128 = self.tv.mine(&input, Counter::default(), 1);
+
+        #[cfg(feature = "zeroize")]
+        input.zeroize();
 
         let proof = Proof::new(self.id, solution, nonce);
+
+        #[cfg(feature = "zeroize")]
+        nonce.zeroize();
+
         Ok(proof)
     }
 
@@ -150,12 +166,34 @@ impl Tlph {
         let upper = current.min(max_step);
         let valid_range = self.start..=upper;
 
-        if !valid_range.contains(&proof.solution().step()) {
+        let mut solution = proof.solution();
+        if !valid_range.contains(&solution.step()) {
+            #[cfg(feature = "zeroize")]
+            solution.zeroize();
+
             return Err(TlphError::OutOfRange);
         }
 
-        let input = &proof.solution().to_bytes()?;
-        Ok(self.tv.verify(&input, proof.nonce()))
+        let mut input = match solution.to_bytes() {
+            Ok(bytes) => bytes,
+            Err(e) => {
+                #[cfg(feature = "zeroize")]
+                solution.zeroize();
+
+                return Err(e);
+            }
+        };
+        let mut nonce = proof.nonce();
+        let valid = self.tv.verify(&input, nonce);
+
+        #[cfg(feature = "zeroize")]
+        {
+            solution.zeroize();
+            input.zeroize();
+            nonce.zeroize();
+        }
+
+        Ok(valid)
     }
 
     /// Returns the session identifier.
@@ -187,7 +225,16 @@ impl Tlph {
         hasher.update(&params.t0().to_le_bytes());
         hasher.update(&nonce);
 
-        hasher.finalize().into()
+        let mut hash = hasher.finalize();
+        let secret: [u8; 32] = hash.into();
+
+        #[cfg(feature = "zeroize")]
+        {
+            hasher.zeroize();
+            hash.zeroize();
+        }
+
+        secret
     }
 }
 

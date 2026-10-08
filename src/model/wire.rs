@@ -2,6 +2,8 @@ use http::uri::PathAndQuery;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use ulid::Ulid;
+#[cfg(feature = "zeroize")]
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::errors::TlphError;
 
@@ -10,9 +12,18 @@ pub(crate) trait Wire: Serialize {
     where
         Self: Sized,
     {
-        let querystring = serde_qs::to_string(self)?;
-        let p_and_q = format!("/?{}", querystring);
-        Ok(PathAndQuery::from_str(&p_and_q)?)
+        let mut querystring = serde_qs::to_string(self)?;
+        let mut s = format!("/?{}", querystring);
+
+        let p_and_q = PathAndQuery::from_str(&s);
+
+        #[cfg(feature = "zeroize")]
+        {
+            querystring.zeroize();
+            s.zeroize();
+        }
+
+        Ok(p_and_q?)
     }
 }
 
@@ -53,50 +64,108 @@ pub(crate) struct ProofWire {
 
 impl Wire for ProofWire {}
 
+#[cfg(feature = "zeroize")]
+impl Zeroize for ProofWire {
+    fn zeroize(&mut self) {
+        self.solution.zeroize();
+        self.nonce.zeroize();
+    }
+}
+
+#[cfg(feature = "zeroize")]
+impl Drop for ProofWire {
+    fn drop(&mut self) {
+        self.zeroize();
+    }
+}
+
+#[cfg(feature = "zeroize")]
+impl ZeroizeOnDrop for ProofWire {}
+
 mod base64url {
     use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
     use serde::{Deserialize, Deserializer, Serializer};
+    #[cfg(feature = "zeroize")]
+    use zeroize::Zeroize;
 
     pub(super) fn serialize<S: Serializer>(
         v: &Vec<u8>,
         s: S,
     ) -> Result<S::Ok, S::Error> {
-        s.serialize_str(&URL_SAFE_NO_PAD.encode(v))
+        let mut encoded = URL_SAFE_NO_PAD.encode(v);
+        let serialized = s.serialize_str(&encoded);
+
+        #[cfg(feature = "zeroize")]
+        encoded.zeroize();
+
+        serialized
     }
 
     pub(super) fn deserialize<'de, D: Deserializer<'de>>(
         d: D,
     ) -> Result<Vec<u8>, D::Error> {
-        let input = String::deserialize(d)?;
-        URL_SAFE_NO_PAD
-            .decode(&input)
-            .map_err(|e| <D::Error as serde::de::Error>::custom(e))
+        let mut input = String::deserialize(d)?;
+        let deserialized = URL_SAFE_NO_PAD.decode(&input).map_err(|_| {
+            <D::Error as serde::de::Error>::custom("invalid base64")
+        });
+
+        #[cfg(feature = "zeroize")]
+        input.zeroize();
+
+        deserialized
     }
 }
 
 mod base64url_u128 {
     use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
     use serde::{Deserialize, Deserializer, Serializer};
+    #[cfg(feature = "zeroize")]
+    use zeroize::Zeroize;
 
     pub(super) fn serialize<S: Serializer>(
         v: &u128,
         s: S,
     ) -> Result<S::Ok, S::Error> {
-        s.serialize_str(&URL_SAFE_NO_PAD.encode(v.to_le_bytes()))
+        let mut nonce_bytes = v.to_le_bytes();
+        let mut encoded = URL_SAFE_NO_PAD.encode(&nonce_bytes);
+        let serialized = s.serialize_str(&encoded);
+
+        #[cfg(feature = "zeroize")]
+        {
+            nonce_bytes.zeroize();
+            encoded.zeroize();
+        }
+
+        serialized
     }
 
     pub(super) fn deserialize<'de, D: Deserializer<'de>>(
         d: D,
     ) -> Result<u128, D::Error> {
-        let input = String::deserialize(d)?;
-        let bytes = URL_SAFE_NO_PAD
-            .decode(&input)
-            .map_err(|e| <D::Error as serde::de::Error>::custom(e))?;
-        let nonce: [u8; 16] = bytes.try_into().map_err(|_| {
+        let mut input = String::deserialize(d)?;
+        let decoded = URL_SAFE_NO_PAD.decode(&input);
+
+        #[cfg(feature = "zeroize")]
+        input.zeroize();
+
+        let mut bytes = decoded.map_err(|_| {
+            <D::Error as serde::de::Error>::custom("invalid base64")
+        })?;
+        let array = <[u8; 16]>::try_from(bytes.as_slice());
+
+        #[cfg(feature = "zeroize")]
+        bytes.zeroize();
+
+        let mut array = array.map_err(|_| {
             <D::Error as serde::de::Error>::custom(
-                "nonce must decode to 16 bytes",
+                "u128 value must decode to 16 bytes",
             )
         })?;
-        Ok(u128::from_le_bytes(nonce))
+        let deserialized = u128::from_le_bytes(array);
+
+        #[cfg(feature = "zeroize")]
+        array.zeroize();
+
+        Ok(deserialized)
     }
 }

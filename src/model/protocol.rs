@@ -3,6 +3,8 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use http::Uri;
 use serde_qs;
 use ulid::Ulid;
+#[cfg(feature = "zeroize")]
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::errors::TlphError;
 use crate::model::{ChallengeWire, ProofWire, Solution, Wire};
@@ -161,10 +163,24 @@ impl Proof {
     /// with the solution and nonce encoded as unpadded URL-safe base64.
     pub fn to_string(&self) -> Result<String, TlphError> {
         let id = self.id.to_string();
-        let solution = URL_SAFE_NO_PAD.encode(self.solution.to_bytes()?);
-        let nonce = URL_SAFE_NO_PAD.encode(self.nonce.to_le_bytes());
 
-        Ok(format!("{id}.{solution}.{nonce}"))
+        let mut solution_bytes = self.solution.to_bytes()?;
+        let mut nonce_bytes = self.nonce.to_le_bytes();
+
+        let mut solution = URL_SAFE_NO_PAD.encode(&solution_bytes);
+        let mut nonce = URL_SAFE_NO_PAD.encode(&nonce_bytes);
+
+        let proof_str = format!("{id}.{solution}.{nonce}");
+
+        #[cfg(feature = "zeroize")]
+        {
+            solution_bytes.zeroize();
+            nonce_bytes.zeroize();
+            solution.zeroize();
+            nonce.zeroize();
+        }
+
+        Ok(proof_str)
     }
 
     /// Parse a [Proof] from a string of the form `id.solution.nonce`, with the
@@ -179,24 +195,22 @@ impl Proof {
 
         let id =
             Ulid::from_string(first).map_err(|_| TlphError::ProofFormat)?;
+        let solution = with_decoded(second, Solution::from_bytes)??;
+        let mut nonce = with_decoded(third, |b| {
+            <&[u8; 16]>::try_from(b).map(|a| u128::from_le_bytes(*a))
+        })?
+        .map_err(|_| TlphError::ProofFormat)?;
 
-        let solution_bytes = URL_SAFE_NO_PAD
-            .decode(second)
-            .map_err(|_| TlphError::ProofFormat)?;
-        let solution = Solution::from_bytes(&solution_bytes)?;
-
-        let nonce_bytes: [u8; 16] = URL_SAFE_NO_PAD
-            .decode(third)
-            .map_err(|_| TlphError::ProofFormat)?
-            .try_into()
-            .map_err(|_| TlphError::ProofFormat)?;
-        let nonce = u128::from_le_bytes(nonce_bytes);
-
-        Ok(Self {
+        let proof = Self {
             id,
             solution,
             nonce,
-        })
+        };
+
+        #[cfg(feature = "zeroize")]
+        nonce.zeroize();
+
+        Ok(proof)
     }
 
     /// Returns the session identifier.
@@ -215,6 +229,24 @@ impl Proof {
     }
 }
 
+#[cfg(feature = "zeroize")]
+impl Zeroize for Proof {
+    fn zeroize(&mut self) {
+        self.solution.zeroize();
+        self.nonce.zeroize();
+    }
+}
+
+#[cfg(feature = "zeroize")]
+impl Drop for Proof {
+    fn drop(&mut self) {
+        self.zeroize();
+    }
+}
+
+#[cfg(feature = "zeroize")]
+impl ZeroizeOnDrop for Proof {}
+
 fn non_default<T: PartialEq>(value: T, default: T) -> Option<T> {
     (value != default).then_some(value)
 }
@@ -230,4 +262,19 @@ fn host_query<'a>(uri: &'a Uri, host: &str) -> Result<&'a str, TlphError> {
         Some(q) => Ok(q),
         None => return Err(TlphError::UriParse),
     }
+}
+
+fn with_decoded<T>(
+    s: &str,
+    f: impl FnOnce(&[u8]) -> T,
+) -> Result<T, TlphError> {
+    let mut bytes = URL_SAFE_NO_PAD
+        .decode(s)
+        .map_err(|_| TlphError::ProofFormat)?;
+    let out = f(&bytes);
+
+    #[cfg(feature = "zeroize")]
+    bytes.zeroize();
+
+    Ok(out)
 }
