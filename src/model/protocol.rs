@@ -8,6 +8,7 @@ use crate::errors::TlphError;
 use crate::model::{ChallengeWire, ProofWire, Solution, Wire};
 use crate::params::{Params, TvParams};
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Challenge {
     id: Ulid,
     start: u64,
@@ -94,6 +95,7 @@ impl Challenge {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Proof {
     id: Ulid,
     solution: Solution,

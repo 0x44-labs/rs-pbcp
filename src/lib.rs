@@ -126,3 +126,14 @@ impl Tlph {
         hasher.finalize().into()
     }
 }
+
+impl core::fmt::Debug for Tlph {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Tlph")
+            .field("id", &self.id)
+            .field("start", &self.start)
+            .field("tv", &self.tv)
+            .field("params", &self.params)
+            .finish_non_exhaustive()
+    }
+}

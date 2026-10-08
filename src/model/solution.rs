@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 
 use crate::errors::TlphError;
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Solution {
     step: u64,
     data: Vec<u8>,
@@ -46,6 +46,7 @@ impl Solution {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct SolutionBuilder {
     step: u64,
     data: Vec<u8>,

@@ -7,7 +7,7 @@ use crate::errors::TlphError;
 pub type TvParams = traversev::Params;
 
 /// Time-limited Proof-of-Humanity (TLPH) parameters.
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Params {
     tv: TvParams,
     x: u64,
