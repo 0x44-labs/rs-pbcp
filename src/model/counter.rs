@@ -10,6 +10,8 @@ use std::{
 pub struct Counter(u128);
 
 impl Counter {
+    /// Create a new `Counter` holding the given `u64` count in the low 64 bits
+    /// and the current Unix timestamp (in seconds) in the high 64 bits.
     pub fn new(count: u64) -> Self {
         let time = Self::now();
 

@@ -8,6 +8,8 @@ use crate::errors::TlphError;
 use crate::model::{ChallengeWire, ProofWire, Solution, Wire};
 use crate::params::{Params, TvParams};
 
+/// A `Challenge` represents a session identifier, a start time step, a nonce
+/// and a set of parameters.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Challenge {
     id: Ulid,
@@ -17,6 +19,8 @@ pub struct Challenge {
 }
 
 impl Challenge {
+    /// Create a new [Challenge] with the given session identifier, starting
+    /// time step, nonce, and parameters.
     pub fn new(id: Ulid, start: u64, nonce: &[u8], params: Params) -> Self {
         Self {
             id,
@@ -26,6 +30,8 @@ impl Challenge {
         }
     }
 
+    /// Serialise this [Challenge] to a `tlph://challenge` URI, omitting
+    /// parameters that have their default values.
     pub fn to_uri(&self) -> Result<Uri, TlphError> {
         let tv = self.params.tv();
         let wire = ChallengeWire {
@@ -51,6 +57,8 @@ impl Challenge {
         Ok(uri)
     }
 
+    /// Parse a [Challenge] from a `tlph://challenge` URI, using defaults for
+    /// omitted parameters.
     pub fn from_uri(uri: &Uri) -> Result<Self, TlphError> {
         let query = host_query(uri, "challenge")?;
         let wire: ChallengeWire = serde_qs::from_str(query)?;
@@ -78,23 +86,29 @@ impl Challenge {
         })
     }
 
+    /// Returns the session identifier.
     pub const fn id(&self) -> Ulid {
         self.id
     }
 
+    /// Returns the starting time step.
     pub const fn start(&self) -> u64 {
         self.start
     }
 
+    /// Returns a clone of the nonce.
     pub fn nonce(&self) -> Vec<u8> {
         self.nonce.clone()
     }
 
+    /// Returns the parameters.
     pub const fn params(&self) -> Params {
         self.params
     }
 }
 
+/// A `Proof` represents a [Solution] and the mined nonce that proves it,
+/// bound to a session identifier.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Proof {
     id: Ulid,
@@ -103,6 +117,8 @@ pub struct Proof {
 }
 
 impl Proof {
+    /// Create a new [Proof] for the given session identifier, solution and
+    /// nonce.
     pub fn new(id: Ulid, solution: &Solution, nonce: u128) -> Self {
         Self {
             id: id,
@@ -111,6 +127,7 @@ impl Proof {
         }
     }
 
+    /// Serialise this [Proof] to a `tlph://proof` URI.
     pub fn to_uri(&self) -> Result<Uri, TlphError> {
         let wire = ProofWire {
             id: self.id,
@@ -128,6 +145,7 @@ impl Proof {
         Ok(uri)
     }
 
+    /// Parse a [Proof] from a `tlph://proof` URI.
     pub fn from_uri(uri: &Uri) -> Result<Self, TlphError> {
         let query = host_query(uri, "proof")?;
         let wire: ProofWire = serde_qs::from_str(query)?;
@@ -139,6 +157,8 @@ impl Proof {
         })
     }
 
+    /// Serialise this [Proof] to a string of the form `id.solution.nonce`,
+    /// with the solution and nonce encoded as unpadded URL-safe base64.
     pub fn to_string(&self) -> Result<String, TlphError> {
         let id = self.id.to_string();
         let solution = URL_SAFE_NO_PAD.encode(self.solution.to_bytes()?);
@@ -147,6 +167,8 @@ impl Proof {
         Ok(format!("{id}.{solution}.{nonce}"))
     }
 
+    /// Parse a [Proof] from a string of the form `id.solution.nonce`, with the
+    /// solution and nonce encoded as unpadded URL-safe base64.
     pub fn from_string(s: &str) -> Result<Self, TlphError> {
         let mut parts = s.split(".");
         let (Some(first), Some(second), Some(third), None) =
@@ -177,14 +199,17 @@ impl Proof {
         })
     }
 
+    /// Returns the session identifier.
     pub const fn id(&self) -> Ulid {
         self.id
     }
 
+    /// Returns a clone of the solution.
     pub fn solution(&self) -> Solution {
         self.solution.clone()
     }
 
+    /// Returns the nonce.
     pub const fn nonce(&self) -> u128 {
         self.nonce
     }

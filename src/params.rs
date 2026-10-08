@@ -81,22 +81,22 @@ impl Params {
         })
     }
 
-    /// TraverseV parameters.
+    /// Returns the TraverseV parameters.
     pub const fn tv(&self) -> TvParams {
         self.tv
     }
 
-    /// Time step width in seconds.
+    /// Returns the time step width in seconds.
     pub const fn x(&self) -> u64 {
         self.x
     }
 
-    /// Time step count.
+    /// Returns the time step count.
     pub const fn l(&self) -> u64 {
         self.l
     }
 
-    /// Unix time from which to start counting time steps.
+    /// Returns the Unix time from which to start counting time steps.
     pub const fn t0(&self) -> u64 {
         self.t0
     }
