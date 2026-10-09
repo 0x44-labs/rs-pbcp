@@ -40,8 +40,8 @@
 //! ## Features
 //!
 //! The `zeroize` feature (disabled by default) implements `Zeroize` and
-//! `ZeroizeOnDrop` for `Solution` and `Proof`, and zeroises intermediate
-//! values on a best-effort basis.
+//! `ZeroizeOnDrop` for `Solution`, `SolutionBuilder`, and `Proof`, and
+//! zeroises intermediate values on a best-effort basis.
 mod errors;
 mod model;
 mod params;
