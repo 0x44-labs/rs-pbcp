@@ -204,7 +204,7 @@ mod tests {
         b"This is a payload".to_vec()
     }
 
-    fn sample() -> Solution {
+    fn sample_solution() -> Solution {
         let step = time_step();
         let payload = sample_payload();
         let solution = Solution::builder(step, payload)
@@ -228,7 +228,7 @@ mod tests {
 
     #[test]
     fn json_round_trip() {
-        let original = sample();
+        let original = sample_solution();
         let json = original.to_json().expect("valid Solution serialises");
 
         let reconstructed = Solution::from_json(&json)
@@ -238,7 +238,7 @@ mod tests {
 
     #[test]
     fn canonical_bytes_round_trip() {
-        let original = sample();
+        let original = sample_solution();
         let bytes = original
             .to_bytes()
             .expect("valid Solution serialises to canonical JSON bytes");
@@ -250,7 +250,7 @@ mod tests {
 
     #[test]
     fn accessors_return_their_own_field() {
-        let solution = sample();
+        let solution = sample_solution();
         let payload = sample_payload();
 
         assert_eq!(solution.step(), time_step());
@@ -259,13 +259,13 @@ mod tests {
 
     #[test]
     fn existing_claim_is_some() {
-        let solution = sample();
+        let solution = sample_solution();
         assert!(solution.claim("iss").is_some());
     }
 
     #[test]
     fn missing_claim_is_none() {
-        let solution = sample();
+        let solution = sample_solution();
         assert!(solution.claim("nbf").is_none());
     }
 

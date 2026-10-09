@@ -197,7 +197,7 @@ mod tests {
         b"This is a payload".to_vec()
     }
 
-    fn sample() -> Solution {
+    fn sample_solution() -> Solution {
         let step = time_step();
         let payload = sample_payload();
         let solution = Solution::builder(step, payload)
@@ -246,7 +246,7 @@ mod tests {
     #[test]
     fn proof_path_and_query_layout() {
         let id = Ulid::generate();
-        let solution = sample()
+        let solution = sample_solution()
             .to_bytes()
             .expect("valid Solution serialises to canonical JSON bytes");
         let nonce = 0u128;
@@ -272,7 +272,7 @@ mod tests {
 
     #[test]
     fn base64url_round_trip() {
-        let solution = sample();
+        let solution = sample_solution();
         let original = Base64Url(solution.to_bytes().unwrap().to_vec());
         let json =
             serde_json::to_string(&original).expect("valid bytes serialise");

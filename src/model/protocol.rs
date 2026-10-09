@@ -278,3 +278,193 @@ fn with_decoded<T>(
 
     Ok(out)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    type Error = TlphError;
+
+    const TIME: u64 = 1786558105;
+
+    const CHALLENGE_NONCE: &[u8] = b"This is a challenge nonce";
+
+    fn time_step() -> u64 {
+        let params = Params::default();
+        params.time_step(Some(TIME))
+    }
+
+    fn sample_challenge(id: Ulid, params: Params) -> Challenge {
+        let step = time_step();
+        Challenge::new(id, step, CHALLENGE_NONCE, params)
+    }
+
+    fn challenge_query() -> String {
+        format!(
+            "id={}&start={}&nonce={}",
+            Ulid::generate(),
+            time_step(),
+            URL_SAFE_NO_PAD.encode(CHALLENGE_NONCE)
+        )
+    }
+
+    fn parse_uri(authority: &str, query: &str) -> Uri {
+        format!("tlph://{authority}/?{query}")
+            .parse()
+            .expect("valid URI")
+    }
+
+    fn sample_payload() -> Vec<u8> {
+        b"This is a payload".to_vec()
+    }
+
+    fn sample_solution() -> Solution {
+        let step = time_step();
+        let payload = sample_payload();
+        let solution = Solution::builder(step, payload)
+            .claim("iss", "https://humanity.example")
+            .claim("sub", "Homo sapiens")
+            .claim("aud", "https://humans-only.example")
+            .claim("iat", "1786554930")
+            .claim("exp", "1786561137")
+            .build();
+
+        solution
+    }
+
+    fn sample_proof() -> Proof {
+        let id = Ulid::generate();
+        let solution = sample_solution();
+        let nonce = 0u128;
+
+        Proof::new(id, &solution, nonce)
+    }
+
+    #[test]
+    fn challenge_uri_round_trip() {
+        let default_params = Params::default();
+        let tv = TvParams::new(16 * 1024, 2, 4, 12).expect("valid TV params");
+        let custom_params = Params::new(tv, 60, 5, None).expect("valid params");
+
+        for params in [default_params, custom_params] {
+            let original = sample_challenge(Ulid::generate(), params);
+            let uri = original
+                .to_uri()
+                .expect("valid Challenge serialises to URI");
+
+            let reconstructed = Challenge::from_uri(&uri)
+                .expect("valid URI parses to Challenge");
+            assert_eq!(original, reconstructed);
+        }
+    }
+
+    #[test]
+    fn challenge_accessors_return_their_own_field() {
+        let id = Ulid::generate();
+        let params = Params::default();
+        let challenge = sample_challenge(id, params);
+
+        assert_eq!(challenge.id(), id);
+        assert_eq!(challenge.start(), time_step());
+        assert_eq!(challenge.nonce(), &CHALLENGE_NONCE.to_vec());
+        assert_eq!(challenge.params(), params);
+    }
+
+    #[test]
+    fn challenge_from_uri_rejects_missing_field() {
+        let uri = parse_uri("challenge", "start=1");
+        let result = Challenge::from_uri(&uri);
+        assert!(matches!(result.err(), Some(Error::QueryString(_))));
+    }
+
+    #[test]
+    fn challenge_from_uri_rejects_invalid_tv_params() {
+        let uri =
+            parse_uri("challenge", &format!("{}&m_cost=1", challenge_query()));
+        let result = Challenge::from_uri(&uri);
+        assert!(matches!(result.err(), Some(Error::TvParams(_))));
+    }
+
+    #[test]
+    fn challenge_from_uri_rejects_invalid_params() {
+        let uri = parse_uri("challenge", &format!("{}&x=0", challenge_query()));
+        let result = Challenge::from_uri(&uri);
+        assert!(matches!(result.err(), Some(Error::StepTooSmall)));
+    }
+
+    #[test]
+    fn proof_uri_round_trip() {
+        let original = sample_proof();
+        let uri = original.to_uri().expect("valid Proof serialises to URI");
+
+        let reconstructed =
+            Proof::from_uri(&uri).expect("valid URI parses to Proof");
+        assert_eq!(original, reconstructed);
+    }
+
+    #[test]
+    fn proof_string_round_trip() {
+        let original = sample_proof();
+        let string = original
+            .to_string()
+            .expect("valid Proof serialises to string");
+
+        let reconstructed =
+            Proof::from_string(&string).expect("valid string parses to Proof");
+        assert_eq!(original, reconstructed);
+    }
+
+    #[test]
+    fn proof_from_string_rejects_malformed() {
+        let id = Ulid::generate();
+        let solution = URL_SAFE_NO_PAD.encode(
+            sample_solution()
+                .to_bytes()
+                .expect("valid Solution serialises to canonical JSON bytes"),
+        );
+        let nonce = URL_SAFE_NO_PAD.encode(0u128.to_le_bytes());
+
+        for string in [
+            format!("{nonce}.{solution}.{id}"),
+            format!("{solution}.{id}.{nonce}"),
+            format!("{id}.{solution}"),
+            format!("{solution}.{nonce}"),
+        ] {
+            let result = Proof::from_string(&string);
+            assert!(matches!(result.err(), Some(Error::ProofFormat)));
+        }
+    }
+
+    #[test]
+    fn proof_accessors_return_their_own_field() {
+        let id = Ulid::generate();
+        let solution = sample_solution();
+        let nonce = 0u128;
+        let proof = Proof::new(id, &solution, nonce);
+
+        assert_eq!(proof.id(), id);
+        assert_eq!(proof.solution(), &solution);
+        assert_eq!(proof.nonce(), nonce);
+    }
+
+    #[test]
+    fn host_query_rejects_wrong_scheme() {
+        let uri: Uri = "http://challenge/?a=b".parse().expect("valid URI");
+        let result = host_query(&uri, "challenge");
+        assert!(matches!(result.err(), Some(Error::UriParse)));
+    }
+
+    #[test]
+    fn host_query_rejects_wrong_host() {
+        let uri = parse_uri("proof", "a=b");
+        let result = host_query(&uri, "challenge");
+        assert!(matches!(result.err(), Some(Error::InvalidHost)));
+    }
+
+    #[test]
+    fn host_query_rejects_missing_query() {
+        let uri: Uri = "tlph://challenge/".parse().expect("valid URI");
+        let result = host_query(&uri, "challenge");
+        assert!(matches!(result.err(), Some(Error::UriParse)));
+    }
+}
