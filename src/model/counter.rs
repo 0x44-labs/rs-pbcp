@@ -102,3 +102,128 @@ impl From<Counter> for u128 {
         value.0
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const TIME: u64 = 1786558105;
+
+    fn now() -> u64 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("")
+            .as_secs()
+    }
+
+    fn pack_values(count: u64, time: u64) -> Counter {
+        Counter::from((u128::from(time) << 64) | u128::from(count))
+    }
+
+    fn unpack_counter(counter: Counter) -> (u64, u64) {
+        let value = u128::from(counter);
+        (value as u64, (value >> 64) as u64)
+    }
+
+    #[test]
+    fn new_packs_count_low_time_high() {
+        for count in [0, 1, u64::MAX] {
+            let before = now();
+            let counter = Counter::new(count);
+            let after = now();
+
+            let unpacked = unpack_counter(counter);
+            assert_eq!(unpacked.0, count);
+            assert!((before..=after).contains(&unpacked.1))
+        }
+    }
+
+    #[test]
+    fn default_zero_count_current_time() {
+        let before = now();
+        let counter = Counter::default();
+        let after = now();
+
+        let unpacked = unpack_counter(counter);
+        assert_eq!(unpacked.0, 0);
+        assert!((before..=after).contains(&unpacked.1))
+    }
+
+    #[test]
+    fn debug_shows_count_and_time() {
+        let counter = pack_values(0, TIME);
+        assert_eq!(
+            format!("{:?}", counter),
+            format!("Counter {{ count: 0, time: {} }}", TIME)
+        );
+    }
+
+    #[test]
+    fn to_bytes_byte_order() {
+        let count = 16u64;
+        let counter = pack_values(count, TIME);
+
+        // Build the expected byte orders from the two u64 halves.
+        let be: [u8; 16] = [TIME.to_be_bytes(), count.to_be_bytes()]
+            .concat()
+            .try_into()
+            .unwrap();
+        let le: [u8; 16] = [count.to_le_bytes(), TIME.to_le_bytes()]
+            .concat()
+            .try_into()
+            .unwrap();
+
+        assert_eq!(counter.to_be_bytes(), be);
+        assert_eq!(counter.to_le_bytes(), le);
+        assert_eq!(
+            counter.to_ne_bytes(),
+            if cfg!(target_endian = "little") {
+                le
+            } else {
+                be
+            }
+        );
+    }
+
+    #[test]
+    fn add_assign_increments_count() {
+        let mut counter = pack_values(0, TIME);
+        counter += 16;
+
+        let unpacked = unpack_counter(counter);
+        assert_eq!(unpacked.0, 16);
+    }
+
+    #[test]
+    fn add_assign_max_no_refresh() {
+        for (count, rhs) in [(0, u64::MAX), (u64::MAX - 1, 1), (u64::MAX, 0)] {
+            let mut counter = pack_values(count, TIME);
+            counter += rhs;
+
+            let unpacked = unpack_counter(counter);
+            assert_eq!(unpacked.0, u64::MAX);
+            assert_eq!(unpacked.1, TIME);
+        }
+    }
+
+    #[test]
+    fn add_assign_overflow_refreshes_time() {
+        for (count, rhs) in [(1, u64::MAX), (u64::MAX, 1)] {
+            let mut counter = pack_values(count, TIME);
+            let before = now();
+            counter += rhs;
+            let after = now();
+
+            let unpacked = unpack_counter(counter);
+            assert_eq!(unpacked.0, 0);
+            assert!((before..=after).contains(&unpacked.1))
+        }
+    }
+
+    #[test]
+    fn u128_round_trip() {
+        for value in [0, 1, u128::MAX] {
+            assert_eq!(u128::from(Counter::from(value)), value);
+        }
+    }
+}
