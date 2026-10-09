@@ -7,37 +7,37 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::errors::TlphError;
 
-/// A `Solution` represents a byte payload and set of named claims,
+/// A `Message` represents a byte payload and set of named claims,
 /// bound to a time step.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Solution {
+pub struct Message {
     step: u64,
     payload: Vec<u8>,
     claims: BTreeMap<String, Value>,
 }
 
-impl Solution {
-    /// Create a new [SolutionBuilder] for the given time step and payload.
-    pub fn builder(step: u64, payload: Vec<u8>) -> SolutionBuilder {
-        SolutionBuilder::new(step, payload)
+impl Message {
+    /// Create a new [MessageBuilder] for the given time step and payload.
+    pub fn builder(step: u64, payload: Vec<u8>) -> MessageBuilder {
+        MessageBuilder::new(step, payload)
     }
 
-    /// Parse a [Solution] from a JSON string.
+    /// Parse a [Message] from a JSON string.
     pub fn from_json(json: &str) -> Result<Self, TlphError> {
         Ok(serde_json::from_str(json)?)
     }
 
-    /// Serialise this [Solution] to a JSON string.
+    /// Serialise this [Message] to a JSON string.
     pub fn to_json(&self) -> Result<String, TlphError> {
         Ok(serde_json::to_string(self)?)
     }
 
-    /// Parse a [Solution] from JSON-encoded bytes.
+    /// Parse a [Message] from JSON-encoded bytes.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, TlphError> {
         Ok(serde_json::from_slice(bytes)?)
     }
 
-    /// Serialise this [Solution] to JSON bytes in canonical form.
+    /// Serialise this [Message] to JSON bytes in canonical form.
     pub fn to_bytes(&self) -> Result<Vec<u8>, TlphError> {
         Ok(serde_json_canonicalizer::to_vec(self)?)
     }
@@ -59,7 +59,7 @@ impl Solution {
 }
 
 #[cfg(feature = "zeroize")]
-impl Zeroize for Solution {
+impl Zeroize for Message {
     fn zeroize(&mut self) {
         self.payload.zeroize();
         for (mut k, mut v) in std::mem::take(&mut self.claims) {
@@ -70,25 +70,25 @@ impl Zeroize for Solution {
 }
 
 #[cfg(feature = "zeroize")]
-impl Drop for Solution {
+impl Drop for Message {
     fn drop(&mut self) {
         self.zeroize();
     }
 }
 
 #[cfg(feature = "zeroize")]
-impl ZeroizeOnDrop for Solution {}
+impl ZeroizeOnDrop for Message {}
 
-/// A builder for [Solution].
+/// A builder for [Message].
 #[derive(Debug, Clone)]
-pub struct SolutionBuilder {
+pub struct MessageBuilder {
     step: u64,
     payload: Vec<u8>,
     claims: BTreeMap<String, Value>,
 }
 
-impl SolutionBuilder {
-    /// Create a new [SolutionBuilder] with empty claims.
+impl MessageBuilder {
+    /// Create a new [MessageBuilder] with empty claims.
     fn new(step: u64, payload: Vec<u8>) -> Self {
         Self {
             step,
@@ -133,9 +133,9 @@ impl SolutionBuilder {
         self
     }
 
-    /// Consume this [SolutionBuilder] and return the resulting [Solution].
-    pub fn build(mut self) -> Solution {
-        Solution {
+    /// Consume this [MessageBuilder] and return the resulting [Message].
+    pub fn build(mut self) -> Message {
+        Message {
             step: self.step,
             payload: std::mem::take(&mut self.payload),
             claims: std::mem::take(&mut self.claims),
@@ -144,7 +144,7 @@ impl SolutionBuilder {
 }
 
 #[cfg(feature = "zeroize")]
-impl Zeroize for SolutionBuilder {
+impl Zeroize for MessageBuilder {
     fn zeroize(&mut self) {
         self.payload.zeroize();
         for (mut k, mut v) in std::mem::take(&mut self.claims) {
@@ -155,14 +155,14 @@ impl Zeroize for SolutionBuilder {
 }
 
 #[cfg(feature = "zeroize")]
-impl Drop for SolutionBuilder {
+impl Drop for MessageBuilder {
     fn drop(&mut self) {
         self.zeroize();
     }
 }
 
 #[cfg(feature = "zeroize")]
-impl ZeroizeOnDrop for SolutionBuilder {}
+impl ZeroizeOnDrop for MessageBuilder {}
 
 /// Wipes every `String` reachable from a `Value`, including object keys.
 ///
@@ -204,10 +204,10 @@ mod tests {
         b"This is a payload".to_vec()
     }
 
-    fn solution() -> Solution {
+    fn message() -> Message {
         let step = time_step();
         let payload = payload();
-        let solution = Solution::builder(step, payload)
+        let message = Message::builder(step, payload)
             .claim("iss", "https://humanity.example")
             .claim("sub", "Homo sapiens")
             .claim("aud", "https://humans-only.example")
@@ -215,71 +215,71 @@ mod tests {
             .claim("exp", "1786561137")
             .build();
 
-        solution
+        message
     }
 
     #[test]
     fn new_builder_empty_claims() {
         let step = time_step();
         let payload = payload();
-        let builder = Solution::builder(step, payload);
+        let builder = Message::builder(step, payload);
         assert!(builder.claims.is_empty());
     }
 
     #[test]
     fn json_round_trip() {
-        let original = solution();
-        let json = original.to_json().expect("valid Solution serialises");
+        let original = message();
+        let json = original.to_json().expect("valid Message serialises");
 
-        let reconstructed = Solution::from_json(&json)
-            .expect("valid JSON string parses to Solution");
+        let reconstructed = Message::from_json(&json)
+            .expect("valid JSON string parses to Message");
         assert_eq!(original, reconstructed);
     }
 
     #[test]
     fn canonical_bytes_round_trip() {
-        let original = solution();
+        let original = message();
         let bytes = original
             .to_bytes()
-            .expect("valid Solution serialises to canonical JSON bytes");
+            .expect("valid Message serialises to canonical JSON bytes");
 
-        let reconstructed = Solution::from_bytes(&bytes)
-            .expect("valid canonical JSON bytes parse to Solution");
+        let reconstructed = Message::from_bytes(&bytes)
+            .expect("valid canonical JSON bytes parse to Message");
         assert_eq!(original, reconstructed);
     }
 
     #[test]
     fn accessors_return_their_own_field() {
-        let solution = solution();
+        let message = message();
         let payload = payload();
 
-        assert_eq!(solution.step(), time_step());
-        assert_eq!(solution.payload(), &payload);
+        assert_eq!(message.step(), time_step());
+        assert_eq!(message.payload(), &payload);
     }
 
     #[test]
     fn existing_claim_is_some() {
-        let solution = solution();
-        assert!(solution.claim("iss").is_some());
+        let message = message();
+        assert!(message.claim("iss").is_some());
     }
 
     #[test]
     fn missing_claim_is_none() {
-        let solution = solution();
-        assert!(solution.claim("nbf").is_none());
+        let message = message();
+        assert!(message.claim("nbf").is_none());
     }
 
     #[test]
     fn claim_replaces_on_duplicate() {
         let step = time_step();
         let payload = payload();
-        let solution = Solution::builder(step, payload)
+        let message = Message::builder(step, payload)
             .claim("sub", "Denisovan")
             .claim("sub", "Homo sapiens")
             .build();
 
         assert_eq!(
-            solution.claim("sub"),
+            message.claim("sub"),
             Some(&serde_json::json!("Homo sapiens"))
         );
     }

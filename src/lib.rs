@@ -1,7 +1,7 @@
 #![cfg_attr(not(feature = "zeroize"), allow(unused_mut))]
 //! ## Example
 //! ```
-//! use tlph::{Params, Solution, Tlph, TvParams};
+//! use tlph::{Params, Message, Tlph, TvParams};
 //!
 //! fn main() {
 //!     let nonce = b"This is a challenge nonce".to_vec();
@@ -14,10 +14,10 @@
 //!     // Create a challenge from the verifier peer
 //!     let challenge = verifier.to_challenge();
 //!
-//!     // Build a solution with a payload and JWT-style claims
+//!     // Build a message with a payload and JWT-style claims
 //!     let step = params.time_step(None);
 //!     let payload = b"This is a payload".to_vec();
-//!     let solution = Solution::builder(step, payload)
+//!     let message = Message::builder(step, payload)
 //!         .claim("iss", "https://humanity.example")
 //!         .claim("sub", "Homo sapiens")
 //!         .claim("aud", "https://humans-only.example")
@@ -28,8 +28,8 @@
 //!     // Create a prover peer from the challenge
 //!     let prover = Tlph::from_challenge(&challenge);
 //!
-//!     // Mine a proof of the solution
-//!     let proof = prover.prove(&solution).unwrap();
+//!     // Mine a proof of the message
+//!     let proof = prover.prove(&message).unwrap();
 //!
 //!     // Check that the proof is valid for the verifier's session
 //!     let result = verifier.verify(&proof, None);
@@ -40,7 +40,7 @@
 //! ## Features
 //!
 //! The `zeroize` feature (disabled by default) implements `Zeroize` and
-//! `ZeroizeOnDrop` for `Solution`, `SolutionBuilder`, and `Proof`, and
+//! `ZeroizeOnDrop` for `Message`, `MessageBuilder`, and `Proof`, and
 //! zeroises intermediate values on a best-effort basis.
 mod errors;
 mod model;
@@ -53,7 +53,7 @@ use ulid::Ulid;
 use zeroize::Zeroize;
 
 pub use crate::errors::TlphError;
-pub use crate::model::{Challenge, Counter, Proof, Solution, SolutionBuilder};
+pub use crate::model::{Challenge, Counter, Message, MessageBuilder, Proof};
 pub use crate::params::{Params, TvParams};
 
 /// Time-limited Proof of Humanity (TLPH) instance.
@@ -63,9 +63,9 @@ pub use crate::params::{Params, TvParams};
 /// session is shared as a [Challenge], from which any party can reconstruct
 /// an equivalent instance.
 ///
-/// Proving mines a [Proof] of a [Solution] bound to a time step. Verification
+/// Proving mines a [Proof] of a [Message] bound to a time step. Verification
 /// checks that the proof belongs to this session, that the time step of its
-/// solution lies within the session's valid range, and that its nonce
+/// message lies within the session's valid range, and that its nonce
 /// satisfies the difficulty. The valid range spans a limited number of time
 /// steps from the starting time step.
 #[derive(Debug)]
@@ -137,15 +137,15 @@ impl Tlph {
         }
     }
 
-    /// Mine a [Proof] of the given [Solution] for this session.
-    pub fn prove(&self, solution: &Solution) -> Result<Proof, TlphError> {
-        let mut input = solution.to_bytes()?;
+    /// Mine a [Proof] of the given [Message] for this session.
+    pub fn prove(&self, message: &Message) -> Result<Proof, TlphError> {
+        let mut input = message.to_bytes()?;
         let mut nonce: u128 = self.tv.mine(&input, Counter::default(), 1);
 
         #[cfg(feature = "zeroize")]
         input.zeroize();
 
-        let proof = Proof::new(self.id, solution, nonce);
+        let proof = Proof::new(self.id, message, nonce);
 
         #[cfg(feature = "zeroize")]
         nonce.zeroize();
@@ -154,9 +154,9 @@ impl Tlph {
     }
 
     /// Verify the given [Proof] against this session, returning whether its
-    /// nonce is valid for its solution.
+    /// nonce is valid for its message.
     ///
-    /// The time step of the solution must lie between the start time step and
+    /// The time step of the message must lie between the start time step and
     /// the earlier of `step` (defaulting to the current time step) and the
     /// last step permitted by the parameters.
     pub fn verify(
@@ -173,11 +173,11 @@ impl Tlph {
         let upper = current.min(max_step);
         let valid_range = self.start..=upper;
 
-        if !valid_range.contains(&proof.solution().step()) {
+        if !valid_range.contains(&proof.message().step()) {
             return Err(TlphError::OutOfRange);
         }
 
-        let mut input = match proof.solution().to_bytes() {
+        let mut input = match proof.message().to_bytes() {
             Ok(bytes) => bytes,
             Err(e) => return Err(e),
         };
@@ -255,9 +255,9 @@ mod tests {
         params.time_step(Some(TIME))
     }
 
-    fn solution(step: u64) -> Solution {
+    fn message(step: u64) -> Message {
         let payload = b"This is a payload".to_vec();
-        let solution = Solution::builder(step, payload)
+        let message = Message::builder(step, payload)
             .claim("iss", "https://humanity.example")
             .claim("sub", "Homo sapiens")
             .claim("aud", "https://humans-only.example")
@@ -265,7 +265,7 @@ mod tests {
             .claim("exp", "1786561137")
             .build();
 
-        solution
+        message
     }
 
     #[test]
@@ -299,8 +299,8 @@ mod tests {
 
         let prover = Tlph::from_challenge(&verifier.to_challenge());
         let proof = prover
-            .prove(&solution(prover.start()))
-            .expect("any valid Solution is provable");
+            .prove(&message(prover.start()))
+            .expect("any valid Message is provable");
 
         let result = verifier.verify(&proof, None);
         assert!(result.is_ok());
@@ -316,8 +316,8 @@ mod tests {
 
         let prover = Tlph::new(b"Prover".to_vec(), params);
         let proof = prover
-            .prove(&solution(time_step()))
-            .expect("any valid Solution is provable");
+            .prove(&message(time_step()))
+            .expect("any valid Message is provable");
 
         let result = verifier.verify(&proof, None);
         assert!(matches!(result.err(), Some(Error::WrongSession)));
@@ -338,7 +338,7 @@ mod tests {
             (start + l, start + l + 1),
             (start + 1, start),
         ] {
-            let proof = Proof::new(verifier.id(), &solution(step), 0);
+            let proof = Proof::new(verifier.id(), &message(step), 0);
 
             let result = verifier.verify(&proof, Some(current));
             assert!(matches!(result.err(), Some(Error::OutOfRange)));

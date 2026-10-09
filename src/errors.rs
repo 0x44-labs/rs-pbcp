@@ -4,7 +4,7 @@ pub enum TlphError {
     /// URI host invalid for TLPH.
     InvalidHost,
 
-    /// Solution could not be JSON serialised/deserialised.
+    /// Message could not be JSON serialised/deserialised.
     Json(serde_json::Error),
 
     /// Proof outside valid step range.

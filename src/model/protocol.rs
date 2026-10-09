@@ -7,7 +7,7 @@ use ulid::Ulid;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::errors::TlphError;
-use crate::model::{ChallengeWire, ProofWire, Solution, Wire};
+use crate::model::{ChallengeWire, Message, ProofWire, Wire};
 use crate::params::{Params, TvParams};
 
 /// A `Challenge` represents a session identifier, a start time step, a nonce
@@ -109,22 +109,22 @@ impl Challenge {
     }
 }
 
-/// A `Proof` represents a [Solution] and the mined nonce that proves it,
+/// A `Proof` represents a [Message] and the mined nonce that proves it,
 /// bound to a session identifier.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Proof {
     id: Ulid,
-    solution: Solution,
+    message: Message,
     nonce: u128,
 }
 
 impl Proof {
-    /// Create a new [Proof] for the given session identifier, solution and
+    /// Create a new [Proof] for the given session identifier, message and
     /// nonce.
-    pub fn new(id: Ulid, solution: &Solution, nonce: u128) -> Self {
+    pub fn new(id: Ulid, message: &Message, nonce: u128) -> Self {
         Self {
             id: id,
-            solution: solution.clone(),
+            message: message.clone(),
             nonce,
         }
     }
@@ -134,7 +134,7 @@ impl Proof {
         let wire = ProofWire {
             id: self.id,
             nonce: self.nonce,
-            solution: self.solution.to_bytes()?,
+            message: self.message.to_bytes()?,
         };
 
         let p_and_q = wire.path_and_query()?;
@@ -154,37 +154,37 @@ impl Proof {
 
         Ok(Proof {
             id: wire.id,
-            solution: Solution::from_bytes(&wire.solution)?,
+            message: Message::from_bytes(&wire.message)?,
             nonce: wire.nonce,
         })
     }
 
-    /// Serialise this [Proof] to a string of the form `id.solution.nonce`,
-    /// with the solution and nonce encoded as unpadded URL-safe base64.
+    /// Serialise this [Proof] to a string of the form `id.message.nonce`,
+    /// with the message and nonce encoded as unpadded URL-safe base64.
     pub fn to_string(&self) -> Result<String, TlphError> {
         let id = self.id.to_string();
 
-        let mut solution_bytes = self.solution.to_bytes()?;
+        let mut message_bytes = self.message.to_bytes()?;
         let mut nonce_bytes = self.nonce.to_le_bytes();
 
-        let mut solution = URL_SAFE_NO_PAD.encode(&solution_bytes);
+        let mut message = URL_SAFE_NO_PAD.encode(&message_bytes);
         let mut nonce = URL_SAFE_NO_PAD.encode(&nonce_bytes);
 
-        let proof_str = format!("{id}.{solution}.{nonce}");
+        let proof_str = format!("{id}.{message}.{nonce}");
 
         #[cfg(feature = "zeroize")]
         {
-            solution_bytes.zeroize();
+            message_bytes.zeroize();
             nonce_bytes.zeroize();
-            solution.zeroize();
+            message.zeroize();
             nonce.zeroize();
         }
 
         Ok(proof_str)
     }
 
-    /// Parse a [Proof] from a string of the form `id.solution.nonce`, with the
-    /// solution and nonce encoded as unpadded URL-safe base64.
+    /// Parse a [Proof] from a string of the form `id.message.nonce`, with the
+    /// message and nonce encoded as unpadded URL-safe base64.
     pub fn from_string(s: &str) -> Result<Self, TlphError> {
         let mut parts = s.split(".");
         let (Some(first), Some(second), Some(third), None) =
@@ -195,17 +195,13 @@ impl Proof {
 
         let id =
             Ulid::from_string(first).map_err(|_| TlphError::ProofFormat)?;
-        let solution = with_decoded(second, Solution::from_bytes)??;
+        let message = with_decoded(second, Message::from_bytes)??;
         let mut nonce = with_decoded(third, |b| {
             <&[u8; 16]>::try_from(b).map(|a| u128::from_le_bytes(*a))
         })?
         .map_err(|_| TlphError::ProofFormat)?;
 
-        let proof = Self {
-            id,
-            solution,
-            nonce,
-        };
+        let proof = Self { id, message, nonce };
 
         #[cfg(feature = "zeroize")]
         nonce.zeroize();
@@ -218,9 +214,9 @@ impl Proof {
         self.id
     }
 
-    /// Returns a reference to the solution.
-    pub const fn solution(&self) -> &Solution {
-        &self.solution
+    /// Returns a reference to the message.
+    pub const fn message(&self) -> &Message {
+        &self.message
     }
 
     /// Returns the nonce.
@@ -232,7 +228,7 @@ impl Proof {
 #[cfg(feature = "zeroize")]
 impl Zeroize for Proof {
     fn zeroize(&mut self) {
-        self.solution.zeroize();
+        self.message.zeroize();
         self.nonce.zeroize();
     }
 }
@@ -317,10 +313,10 @@ mod tests {
         b"This is a payload".to_vec()
     }
 
-    fn solution() -> Solution {
+    fn message() -> Message {
         let step = time_step();
         let payload = payload();
-        let solution = Solution::builder(step, payload)
+        let message = Message::builder(step, payload)
             .claim("iss", "https://humanity.example")
             .claim("sub", "Homo sapiens")
             .claim("aud", "https://humans-only.example")
@@ -328,15 +324,15 @@ mod tests {
             .claim("exp", "1786561137")
             .build();
 
-        solution
+        message
     }
 
     fn proof() -> Proof {
         let id = Ulid::generate();
-        let solution = solution();
+        let message = message();
         let nonce = 0u128;
 
-        Proof::new(id, &solution, nonce)
+        Proof::new(id, &message, nonce)
     }
 
     #[test]
@@ -416,18 +412,18 @@ mod tests {
     #[test]
     fn proof_from_string_rejects_malformed() {
         let id = Ulid::generate();
-        let solution = URL_SAFE_NO_PAD.encode(
-            solution()
+        let message = URL_SAFE_NO_PAD.encode(
+            message()
                 .to_bytes()
-                .expect("valid Solution serialises to canonical JSON bytes"),
+                .expect("valid Message serialises to canonical JSON bytes"),
         );
         let nonce = URL_SAFE_NO_PAD.encode(0u128.to_le_bytes());
 
         for string in [
-            format!("{nonce}.{solution}.{id}"),
-            format!("{solution}.{id}.{nonce}"),
-            format!("{id}.{solution}"),
-            format!("{solution}.{nonce}"),
+            format!("{nonce}.{message}.{id}"),
+            format!("{message}.{id}.{nonce}"),
+            format!("{id}.{message}"),
+            format!("{message}.{nonce}"),
         ] {
             let result = Proof::from_string(&string);
             assert!(matches!(result.err(), Some(Error::ProofFormat)));
@@ -437,12 +433,12 @@ mod tests {
     #[test]
     fn proof_accessors_return_their_own_field() {
         let id = Ulid::generate();
-        let solution = solution();
+        let message = message();
         let nonce = 0u128;
-        let proof = Proof::new(id, &solution, nonce);
+        let proof = Proof::new(id, &message, nonce);
 
         assert_eq!(proof.id(), id);
-        assert_eq!(proof.solution(), &solution);
+        assert_eq!(proof.message(), &message);
         assert_eq!(proof.nonce(), nonce);
     }
 
