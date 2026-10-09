@@ -68,6 +68,7 @@ pub use crate::params::{Params, TvParams};
 /// solution lies within the session's valid range, and that its nonce
 /// satisfies the difficulty. The valid range spans a limited number of time
 /// steps from the starting time step.
+#[derive(Debug)]
 pub struct Tlph {
     id: Ulid,
     start: u64,
@@ -172,29 +173,19 @@ impl Tlph {
         let upper = current.min(max_step);
         let valid_range = self.start..=upper;
 
-        let mut solution = proof.solution();
-        if !valid_range.contains(&solution.step()) {
-            #[cfg(feature = "zeroize")]
-            solution.zeroize();
-
+        if !valid_range.contains(&proof.solution().step()) {
             return Err(TlphError::OutOfRange);
         }
 
-        let mut input = match solution.to_bytes() {
+        let mut input = match proof.solution().to_bytes() {
             Ok(bytes) => bytes,
-            Err(e) => {
-                #[cfg(feature = "zeroize")]
-                solution.zeroize();
-
-                return Err(e);
-            }
+            Err(e) => return Err(e),
         };
         let mut nonce = proof.nonce();
         let valid = self.tv.verify(&input, nonce);
 
         #[cfg(feature = "zeroize")]
         {
-            solution.zeroize();
             input.zeroize();
             nonce.zeroize();
         }
@@ -241,16 +232,5 @@ impl Tlph {
         }
 
         secret
-    }
-}
-
-impl core::fmt::Debug for Tlph {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Tlph")
-            .field("id", &self.id)
-            .field("start", &self.start)
-            .field("tv", &self.tv)
-            .field("params", &self.params)
-            .finish_non_exhaustive()
     }
 }
