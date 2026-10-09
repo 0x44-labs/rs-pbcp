@@ -286,17 +286,16 @@ mod tests {
     type Error = TlphError;
 
     const TIME: u64 = 1786558105;
-
-    const CHALLENGE_NONCE: &[u8] = b"This is a challenge nonce";
+    const NONCE: &[u8] = b"This is a challenge nonce";
 
     fn time_step() -> u64 {
         let params = Params::default();
         params.time_step(Some(TIME))
     }
 
-    fn sample_challenge(id: Ulid, params: Params) -> Challenge {
+    fn challenge(id: Ulid, params: Params) -> Challenge {
         let step = time_step();
-        Challenge::new(id, step, CHALLENGE_NONCE, params)
+        Challenge::new(id, step, NONCE, params)
     }
 
     fn challenge_query() -> String {
@@ -304,7 +303,7 @@ mod tests {
             "id={}&start={}&nonce={}",
             Ulid::generate(),
             time_step(),
-            URL_SAFE_NO_PAD.encode(CHALLENGE_NONCE)
+            URL_SAFE_NO_PAD.encode(NONCE)
         )
     }
 
@@ -314,13 +313,13 @@ mod tests {
             .expect("valid URI")
     }
 
-    fn sample_payload() -> Vec<u8> {
+    fn payload() -> Vec<u8> {
         b"This is a payload".to_vec()
     }
 
-    fn sample_solution() -> Solution {
+    fn solution() -> Solution {
         let step = time_step();
-        let payload = sample_payload();
+        let payload = payload();
         let solution = Solution::builder(step, payload)
             .claim("iss", "https://humanity.example")
             .claim("sub", "Homo sapiens")
@@ -332,9 +331,9 @@ mod tests {
         solution
     }
 
-    fn sample_proof() -> Proof {
+    fn proof() -> Proof {
         let id = Ulid::generate();
-        let solution = sample_solution();
+        let solution = solution();
         let nonce = 0u128;
 
         Proof::new(id, &solution, nonce)
@@ -347,7 +346,7 @@ mod tests {
         let custom_params = Params::new(tv, 60, 5, None).expect("valid params");
 
         for params in [default_params, custom_params] {
-            let original = sample_challenge(Ulid::generate(), params);
+            let original = challenge(Ulid::generate(), params);
             let uri = original
                 .to_uri()
                 .expect("valid Challenge serialises to URI");
@@ -362,11 +361,11 @@ mod tests {
     fn challenge_accessors_return_their_own_field() {
         let id = Ulid::generate();
         let params = Params::default();
-        let challenge = sample_challenge(id, params);
+        let challenge = challenge(id, params);
 
         assert_eq!(challenge.id(), id);
         assert_eq!(challenge.start(), time_step());
-        assert_eq!(challenge.nonce(), &CHALLENGE_NONCE.to_vec());
+        assert_eq!(challenge.nonce(), &NONCE.to_vec());
         assert_eq!(challenge.params(), params);
     }
 
@@ -394,7 +393,7 @@ mod tests {
 
     #[test]
     fn proof_uri_round_trip() {
-        let original = sample_proof();
+        let original = proof();
         let uri = original.to_uri().expect("valid Proof serialises to URI");
 
         let reconstructed =
@@ -404,7 +403,7 @@ mod tests {
 
     #[test]
     fn proof_string_round_trip() {
-        let original = sample_proof();
+        let original = proof();
         let string = original
             .to_string()
             .expect("valid Proof serialises to string");
@@ -418,7 +417,7 @@ mod tests {
     fn proof_from_string_rejects_malformed() {
         let id = Ulid::generate();
         let solution = URL_SAFE_NO_PAD.encode(
-            sample_solution()
+            solution()
                 .to_bytes()
                 .expect("valid Solution serialises to canonical JSON bytes"),
         );
@@ -438,7 +437,7 @@ mod tests {
     #[test]
     fn proof_accessors_return_their_own_field() {
         let id = Ulid::generate();
-        let solution = sample_solution();
+        let solution = solution();
         let nonce = 0u128;
         let proof = Proof::new(id, &solution, nonce);
 

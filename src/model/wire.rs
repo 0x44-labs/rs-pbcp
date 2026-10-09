@@ -193,13 +193,13 @@ mod tests {
         params.time_step(Some(TIME))
     }
 
-    fn sample_payload() -> Vec<u8> {
+    fn payload() -> Vec<u8> {
         b"This is a payload".to_vec()
     }
 
-    fn sample_solution() -> Solution {
+    fn solution() -> Solution {
         let step = time_step();
-        let payload = sample_payload();
+        let payload = payload();
         let solution = Solution::builder(step, payload)
             .claim("iss", "https://humanity.example")
             .claim("sub", "Homo sapiens")
@@ -246,7 +246,7 @@ mod tests {
     #[test]
     fn proof_path_and_query_layout() {
         let id = Ulid::generate();
-        let solution = sample_solution()
+        let solution = solution()
             .to_bytes()
             .expect("valid Solution serialises to canonical JSON bytes");
         let nonce = 0u128;
@@ -272,7 +272,7 @@ mod tests {
 
     #[test]
     fn base64url_round_trip() {
-        let solution = sample_solution();
+        let solution = solution();
         let original = Base64Url(solution.to_bytes().unwrap().to_vec());
         let json =
             serde_json::to_string(&original).expect("valid bytes serialise");

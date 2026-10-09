@@ -200,13 +200,13 @@ mod tests {
         params.time_step(Some(TIME))
     }
 
-    fn sample_payload() -> Vec<u8> {
+    fn payload() -> Vec<u8> {
         b"This is a payload".to_vec()
     }
 
-    fn sample_solution() -> Solution {
+    fn solution() -> Solution {
         let step = time_step();
-        let payload = sample_payload();
+        let payload = payload();
         let solution = Solution::builder(step, payload)
             .claim("iss", "https://humanity.example")
             .claim("sub", "Homo sapiens")
@@ -221,14 +221,14 @@ mod tests {
     #[test]
     fn new_builder_empty_claims() {
         let step = time_step();
-        let payload = sample_payload();
+        let payload = payload();
         let builder = Solution::builder(step, payload);
         assert!(builder.claims.is_empty());
     }
 
     #[test]
     fn json_round_trip() {
-        let original = sample_solution();
+        let original = solution();
         let json = original.to_json().expect("valid Solution serialises");
 
         let reconstructed = Solution::from_json(&json)
@@ -238,7 +238,7 @@ mod tests {
 
     #[test]
     fn canonical_bytes_round_trip() {
-        let original = sample_solution();
+        let original = solution();
         let bytes = original
             .to_bytes()
             .expect("valid Solution serialises to canonical JSON bytes");
@@ -250,8 +250,8 @@ mod tests {
 
     #[test]
     fn accessors_return_their_own_field() {
-        let solution = sample_solution();
-        let payload = sample_payload();
+        let solution = solution();
+        let payload = payload();
 
         assert_eq!(solution.step(), time_step());
         assert_eq!(solution.payload(), &payload);
@@ -259,20 +259,20 @@ mod tests {
 
     #[test]
     fn existing_claim_is_some() {
-        let solution = sample_solution();
+        let solution = solution();
         assert!(solution.claim("iss").is_some());
     }
 
     #[test]
     fn missing_claim_is_none() {
-        let solution = sample_solution();
+        let solution = solution();
         assert!(solution.claim("nbf").is_none());
     }
 
     #[test]
     fn claim_replaces_on_duplicate() {
         let step = time_step();
-        let payload = sample_payload();
+        let payload = payload();
         let solution = Solution::builder(step, payload)
             .claim("sub", "Denisovan")
             .claim("sub", "Homo sapiens")

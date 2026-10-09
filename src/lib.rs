@@ -82,7 +82,7 @@ impl Tlph {
 
     /// Create a new [Tlph] instance with a fresh session identifier, the
     /// current time step as its start, and the given nonce and parameters.
-    pub fn new(nonce: Vec<u8>, params: &Params) -> Self {
+    pub fn new(nonce: Vec<u8>, params: Params) -> Self {
         let id = Ulid::generate();
         let start = params.time_step(None);
 
@@ -102,7 +102,7 @@ impl Tlph {
             start,
             nonce,
             tv: permissioned,
-            params: *params,
+            params,
         }
     }
 
@@ -117,7 +117,7 @@ impl Tlph {
         let nonce = challenge.nonce();
         let params = challenge.params();
 
-        let mut secret = Self::derive_secret(&id, &nonce, &params);
+        let mut secret = Self::derive_secret(&id, &nonce, params);
         let traversev_params = params.tv();
         let permissioned = TraverseV::new_permissioned(
             &secret,
@@ -213,7 +213,7 @@ impl Tlph {
         self.params
     }
 
-    fn derive_secret(id: &Ulid, nonce: &Vec<u8>, params: &Params) -> [u8; 32] {
+    fn derive_secret(id: &Ulid, nonce: &Vec<u8>, params: Params) -> [u8; 32] {
         let mut hasher = Hasher::new();
 
         hasher.update(&id.to_bytes());
@@ -232,5 +232,129 @@ impl Tlph {
         }
 
         secret
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    type Error = TlphError;
+
+    const TIME: u64 = 1786558105;
+    const NONCE: &[u8] = b"This is a challenge nonce";
+
+    /// Parameters for testing.
+    fn params() -> Params {
+        let tv = TvParams::new(8, 2, 2, 12).expect("test parameters are valid");
+        Params::new(tv, 30, 6, None).expect("test parameters are valid")
+    }
+
+    fn time_step() -> u64 {
+        let params = Params::default();
+        params.time_step(Some(TIME))
+    }
+
+    fn solution(step: u64) -> Solution {
+        let payload = b"This is a payload".to_vec();
+        let solution = Solution::builder(step, payload)
+            .claim("iss", "https://humanity.example")
+            .claim("sub", "Homo sapiens")
+            .claim("aud", "https://humans-only.example")
+            .claim("iat", "1786554930")
+            .claim("exp", "1786561137")
+            .build();
+
+        solution
+    }
+
+    #[test]
+    fn new_starts_at_current_time_step() {
+        let params = params();
+
+        let before = params.time_step(None);
+        let tlph = Tlph::new(NONCE.to_vec(), params);
+        let after = params.time_step(None);
+
+        assert!((before..=after).contains(&tlph.start()));
+    }
+
+    #[test]
+    fn challenge_round_trip() {
+        let params = params();
+
+        let original = Tlph::new(NONCE.to_vec(), params);
+        let reconstructed = Tlph::from_challenge(&original.to_challenge());
+
+        assert_eq!(reconstructed.id(), original.id());
+        assert_eq!(reconstructed.start(), original.start());
+        assert_eq!(reconstructed.nonce(), original.nonce());
+        assert_eq!(reconstructed.params(), original.params());
+    }
+
+    #[test]
+    fn proof_verifies() {
+        let params = params();
+        let verifier = Tlph::new(NONCE.to_vec(), params);
+
+        let prover = Tlph::from_challenge(&verifier.to_challenge());
+        let proof = prover
+            .prove(&solution(prover.start()))
+            .expect("any valid Solution is provable");
+
+        let result = verifier.verify(&proof, None);
+        assert!(result.is_ok());
+
+        let valid = result.unwrap();
+        assert_eq!(valid, true);
+    }
+
+    #[test]
+    fn verify_rejects_wrong_session() {
+        let params = params();
+        let verifier = Tlph::new(b"Verifier".to_vec(), params);
+
+        let prover = Tlph::new(b"Prover".to_vec(), params);
+        let proof = prover
+            .prove(&solution(time_step()))
+            .expect("any valid Solution is provable");
+
+        let result = verifier.verify(&proof, None);
+        assert!(matches!(result.err(), Some(Error::WrongSession)));
+    }
+
+    #[test]
+    fn verify_rejects_out_of_range() {
+        let params = params();
+        let verifier = Tlph::new(NONCE.to_vec(), params);
+
+        let start = verifier.start();
+        let l = verifier.params().l();
+
+        // Before the window, after the last permitted step, and later than
+        // the current step.
+        for (step, current) in [
+            (start - 1, start),
+            (start + l, start + l + 1),
+            (start + 1, start),
+        ] {
+            let proof = Proof::new(verifier.id(), &solution(step), 0);
+
+            let result = verifier.verify(&proof, Some(current));
+            assert!(matches!(result.err(), Some(Error::OutOfRange)));
+        }
+    }
+
+    #[test]
+    fn accessors_return_their_own_field() {
+        let id = Ulid::generate();
+        let params = params();
+        let challenge = Challenge::new(id, time_step(), NONCE, params);
+        let tlph = Tlph::from_challenge(&challenge);
+
+        assert_eq!(tlph.id(), id);
+        assert_eq!(tlph.start(), time_step());
+        assert_eq!(tlph.nonce(), &NONCE.to_vec());
+        assert_eq!(tlph.params(), params);
     }
 }
