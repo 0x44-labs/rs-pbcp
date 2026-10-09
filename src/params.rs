@@ -119,3 +119,84 @@ impl Default for Params {
         Params::DEFAULT
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    type Error = TlphError;
+
+    #[test]
+    fn accepts_minimum_values() {
+        let tv = TvParams::default();
+        let result = Params::new(tv, 1, 1, Some(0));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn accepts_maximum_values() {
+        let tv = TvParams::default();
+        let result =
+            Params::new(tv, Params::MAX_X, Params::MAX_L, Some(u64::MAX));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn rejects_zero_step_width() {
+        let tv = TvParams::default();
+        let result = Params::new(tv, 0, 6, None);
+        assert!(matches!(result.err(), Some(Error::StepTooSmall)));
+    }
+
+    #[test]
+    fn rejects_high_step_width() {
+        let tv = TvParams::default();
+        let result = Params::new(tv, u16::MAX as u64 + 1, 6, None);
+        assert!(matches!(result.err(), Some(Error::StepTooBig)));
+    }
+
+    #[test]
+    fn rejects_zero_step_count() {
+        let tv = TvParams::default();
+        let result = Params::new(tv, 30, 0, None);
+        assert!(matches!(result.err(), Some(Error::StepsTooFew)));
+    }
+
+    #[test]
+    fn rejects_high_step_count() {
+        let tv = TvParams::default();
+        let result = Params::new(tv, 30, u16::MAX as u64 + 1, None);
+        assert!(matches!(result.err(), Some(Error::StepsTooMany)));
+    }
+
+    #[test]
+    fn accessors_return_their_own_field() {
+        let params = Params::default();
+
+        assert_eq!(params.tv(), TvParams::default());
+        assert_eq!(params.x(), 30);
+        assert_eq!(params.l(), 6);
+        assert_eq!(params.t0(), 0);
+    }
+
+    #[test]
+    fn accessors_are_const_evaluable() {
+        const TV: TvParams = Params::DEFAULT.tv();
+        const X: u64 = Params::DEFAULT.x();
+        const L: u64 = Params::DEFAULT.l();
+        const T0: u64 = Params::DEFAULT.t0();
+        assert_eq!((TV, X, L, T0), (TvParams::default(), 30, 6, 0));
+    }
+
+    #[test]
+    fn params_are_copy_and_clone() {
+        let original = Params::default();
+        let copied = original;
+        #[allow(clippy::clone_on_copy)]
+        let cloned = original.clone();
+
+        // Original is still usable after the copy.
+        assert_eq!(copied, original);
+        assert_eq!(cloned, original);
+    }
+}
