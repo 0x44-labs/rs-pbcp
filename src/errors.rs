@@ -147,11 +147,11 @@ mod tests {
 
     fn query_string() -> TlphError {
         #[derive(Debug, serde::Deserialize)]
-        struct Probe {
+        struct Query {
             #[allow(dead_code)]
-            n: u32,
+            timestamp: u32,
         }
-        serde_qs::from_str::<Probe>("n=abc").unwrap_err().into()
+        serde_qs::from_str::<Query>("n=abc").unwrap_err().into()
     }
 
     fn tv_params() -> TlphError {
