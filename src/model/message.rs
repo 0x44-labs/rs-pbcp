@@ -7,19 +7,17 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::errors::TlphError;
 
-/// A `Message` represents a byte payload and set of named claims,
-/// bound to a time step.
+/// A `Message` represents a set of named claims bound to a time step.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Message {
     step: u64,
-    payload: Vec<u8>,
     claims: BTreeMap<String, Value>,
 }
 
 impl Message {
-    /// Create a new [MessageBuilder] for the given time step and payload.
-    pub fn builder(step: u64, payload: Vec<u8>) -> MessageBuilder {
-        MessageBuilder::new(step, payload)
+    /// Create a new [MessageBuilder] for the given time step.
+    pub fn builder(step: u64) -> MessageBuilder {
+        MessageBuilder::new(step)
     }
 
     /// Parse a [Message] from a JSON string.
@@ -47,11 +45,6 @@ impl Message {
         self.step
     }
 
-    /// Returns a reference to the payload.
-    pub const fn payload(&self) -> &Vec<u8> {
-        &self.payload
-    }
-
     /// Returns the value of the named claim, if it exists.
     pub fn claim(&self, name: &str) -> Option<&Value> {
         self.claims.get(name)
@@ -61,7 +54,6 @@ impl Message {
 #[cfg(feature = "zeroize")]
 impl Zeroize for Message {
     fn zeroize(&mut self) {
-        self.payload.zeroize();
         for (mut k, mut v) in std::mem::take(&mut self.claims) {
             k.zeroize();
             wipe_value(&mut v);
@@ -83,16 +75,14 @@ impl ZeroizeOnDrop for Message {}
 #[derive(Debug, Clone)]
 pub struct MessageBuilder {
     step: u64,
-    payload: Vec<u8>,
     claims: BTreeMap<String, Value>,
 }
 
 impl MessageBuilder {
     /// Create a new [MessageBuilder] with empty claims.
-    fn new(step: u64, payload: Vec<u8>) -> Self {
+    fn new(step: u64) -> Self {
         Self {
             step,
-            payload,
             claims: BTreeMap::new(),
         }
     }
@@ -137,7 +127,6 @@ impl MessageBuilder {
     pub fn build(mut self) -> Message {
         Message {
             step: self.step,
-            payload: std::mem::take(&mut self.payload),
             claims: std::mem::take(&mut self.claims),
         }
     }
@@ -146,7 +135,6 @@ impl MessageBuilder {
 #[cfg(feature = "zeroize")]
 impl Zeroize for MessageBuilder {
     fn zeroize(&mut self) {
-        self.payload.zeroize();
         for (mut k, mut v) in std::mem::take(&mut self.claims) {
             k.zeroize();
             wipe_value(&mut v);
@@ -200,14 +188,9 @@ mod tests {
         params.time_step(Some(TIME))
     }
 
-    fn payload() -> Vec<u8> {
-        b"This is a payload".to_vec()
-    }
-
     fn message() -> Message {
         let step = time_step();
-        let payload = payload();
-        let message = Message::builder(step, payload)
+        let message = Message::builder(step)
             .claim("iss", "https://humanity.example")
             .claim("sub", "Homo sapiens")
             .claim("aud", "https://humans-only.example")
@@ -221,8 +204,7 @@ mod tests {
     #[test]
     fn new_builder_empty_claims() {
         let step = time_step();
-        let payload = payload();
-        let builder = Message::builder(step, payload);
+        let builder = Message::builder(step);
         assert!(builder.claims.is_empty());
     }
 
@@ -249,12 +231,9 @@ mod tests {
     }
 
     #[test]
-    fn accessors_return_their_own_field() {
+    fn accessor_returns_own_field() {
         let message = message();
-        let payload = payload();
-
         assert_eq!(message.step(), time_step());
-        assert_eq!(message.payload(), &payload);
     }
 
     #[test]
@@ -272,8 +251,7 @@ mod tests {
     #[test]
     fn claim_replaces_on_duplicate() {
         let step = time_step();
-        let payload = payload();
-        let message = Message::builder(step, payload)
+        let message = Message::builder(step)
             .claim("sub", "Denisovan")
             .claim("sub", "Homo sapiens")
             .build();

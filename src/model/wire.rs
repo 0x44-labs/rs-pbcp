@@ -193,14 +193,9 @@ mod tests {
         params.time_step(Some(TIME))
     }
 
-    fn payload() -> Vec<u8> {
-        b"This is a payload".to_vec()
-    }
-
     fn message() -> Message {
         let step = time_step();
-        let payload = payload();
-        let message = Message::builder(step, payload)
+        let message = Message::builder(step)
             .claim("iss", "https://humanity.example")
             .claim("sub", "Homo sapiens")
             .claim("aud", "https://humans-only.example")

@@ -14,10 +14,9 @@
 //!     // Create a challenge from the verifier peer
 //!     let challenge = verifier.to_challenge();
 //!
-//!     // Build a message with a payload and JWT-style claims
+//!     // Build a message with JWT-style claims
 //!     let step = params.time_step(None);
-//!     let payload = b"This is a payload".to_vec();
-//!     let message = Message::builder(step, payload)
+//!     let message = Message::builder(step)
 //!         .claim("iss", "https://humanity.example")
 //!         .claim("sub", "Homo sapiens")
 //!         .claim("aud", "https://humans-only.example")
@@ -256,8 +255,7 @@ mod tests {
     }
 
     fn message(step: u64) -> Message {
-        let payload = b"This is a payload".to_vec();
-        let message = Message::builder(step, payload)
+        let message = Message::builder(step)
             .claim("iss", "https://humanity.example")
             .claim("sub", "Homo sapiens")
             .claim("aud", "https://humans-only.example")
