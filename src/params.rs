@@ -1,12 +1,12 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 use traversev;
 
-use crate::errors::TlphError;
+use crate::errors::CtppError;
 
 /// Alias for TraverseV proof-of-work parameters.
 pub type TvParams = traversev::Params;
 
-/// Time-limited Proof-of-Humanity (TLPH) parameters.
+/// Claim-Bound Time-Based Proof Protocol (CTPP) parameters.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Params {
     tv: TvParams,
@@ -44,7 +44,7 @@ impl Params {
         t0: Self::DEFAULT_T0,
     };
 
-    /// Create new parameters for TLPH.
+    /// Create new parameters for CTPP.
     ///
     /// Returns the constructed `Params` on success, or an error when any value
     /// falls outside its accepted range.
@@ -59,18 +59,18 @@ impl Params {
         x: u64,
         l: u64,
         t0: Option<u64>,
-    ) -> Result<Self, TlphError> {
+    ) -> Result<Self, CtppError> {
         if x < Self::MIN_X {
-            return Err(TlphError::StepTooSmall);
+            return Err(CtppError::StepTooSmall);
         }
         if x > Self::MAX_X {
-            return Err(TlphError::StepTooBig);
+            return Err(CtppError::StepTooBig);
         }
         if l < Self::MIN_L {
-            return Err(TlphError::StepsTooFew);
+            return Err(CtppError::StepsTooFew);
         }
         if l > Self::MAX_L {
-            return Err(TlphError::StepsTooMany);
+            return Err(CtppError::StepsTooMany);
         }
 
         Ok(Params {
@@ -124,7 +124,7 @@ impl Default for Params {
 mod tests {
     use super::*;
 
-    type Error = TlphError;
+    type Error = CtppError;
 
     #[test]
     fn accepts_minimum_values() {

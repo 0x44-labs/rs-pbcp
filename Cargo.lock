@@ -123,6 +123,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "ctpp"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "blake3",
+ "http",
+ "num-traits",
+ "serde",
+ "serde_json",
+ "serde_json_canonicalizer",
+ "serde_qs",
+ "traversev",
+ "ulid",
+ "zeroize",
+]
+
+[[package]]
 name = "find-msvc-tools"
 version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -422,23 +439,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
-]
-
-[[package]]
-name = "tlph"
-version = "0.1.0"
-dependencies = [
- "base64",
- "blake3",
- "http",
- "num-traits",
- "serde",
- "serde_json",
- "serde_json_canonicalizer",
- "serde_qs",
- "traversev",
- "ulid",
- "zeroize",
 ]
 
 [[package]]

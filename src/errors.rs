@@ -1,7 +1,7 @@
-/// Errors returned by TLPH.
+/// Errors returned by CTPP.
 #[derive(Debug)]
-pub enum TlphError {
-    /// URI host invalid for TLPH.
+pub enum CtppError {
+    /// URI host invalid for CTPP.
     InvalidHost,
 
     /// Message could not be JSON serialised/deserialised.
@@ -13,7 +13,7 @@ pub enum TlphError {
     /// Unable to construct path and query.
     PathAndQuery(http::uri::InvalidUri),
 
-    /// Proof string format invalid for TLPH.
+    /// Proof string format invalid for CTPP.
     ProofFormat,
 
     /// Could not serialise/deserialise querystring.
@@ -37,21 +37,21 @@ pub enum TlphError {
     /// Failed to build URI.
     UriBuilder(http::Error),
 
-    /// Parsed URI invalid for TLPH.
+    /// Parsed URI invalid for CTPP.
     UriParse,
 
     /// Proof does not match current session.
     WrongSession,
 }
 
-impl std::fmt::Display for TlphError {
+impl std::fmt::Display for CtppError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let msg = match self {
-            Self::InvalidHost => "uri host invalid for tlph",
+            Self::InvalidHost => "uri host invalid for ctpp",
             Self::Json(e) => return core::fmt::Display::fmt(e, f),
             Self::OutOfRange => "proof outside valid step range",
             Self::PathAndQuery(e) => return core::fmt::Display::fmt(e, f),
-            Self::ProofFormat => "proof string format invalid for tlph",
+            Self::ProofFormat => "proof string format invalid for ctpp",
             Self::QueryString(e) => return core::fmt::Display::fmt(e, f),
             Self::StepsTooFew => "time step count is too low",
             Self::StepsTooMany => "time step count is too high",
@@ -59,14 +59,14 @@ impl std::fmt::Display for TlphError {
             Self::StepTooSmall => "time step width is too small",
             Self::TvParams(e) => return core::fmt::Display::fmt(e, f),
             Self::UriBuilder(e) => return core::fmt::Display::fmt(e, f),
-            Self::UriParse => "parsed uri invalid for tlph",
+            Self::UriParse => "parsed uri invalid for ctpp",
             Self::WrongSession => "proof does not match current session",
         };
         f.write_str(msg)
     }
 }
 
-impl std::error::Error for TlphError {
+impl std::error::Error for CtppError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Json(e) => Some(e),
@@ -79,31 +79,31 @@ impl std::error::Error for TlphError {
     }
 }
 
-impl From<serde_json::Error> for TlphError {
+impl From<serde_json::Error> for CtppError {
     fn from(value: serde_json::Error) -> Self {
         Self::Json(value)
     }
 }
 
-impl From<http::uri::InvalidUri> for TlphError {
+impl From<http::uri::InvalidUri> for CtppError {
     fn from(value: http::uri::InvalidUri) -> Self {
         Self::PathAndQuery(value)
     }
 }
 
-impl From<serde_qs::Error> for TlphError {
+impl From<serde_qs::Error> for CtppError {
     fn from(value: serde_qs::Error) -> Self {
         Self::QueryString(value)
     }
 }
 
-impl From<traversev::TraverseVErr> for TlphError {
+impl From<traversev::TraverseVErr> for CtppError {
     fn from(value: traversev::TraverseVErr) -> Self {
         Self::TvParams(value)
     }
 }
 
-impl From<http::Error> for TlphError {
+impl From<http::Error> for CtppError {
     fn from(value: http::Error) -> Self {
         Self::UriBuilder(value)
     }
@@ -116,36 +116,36 @@ mod tests {
     use super::*;
 
     /// Expected [Display](core::fmt::Display) output.
-    fn expected_display(err: &TlphError) -> &'static str {
+    fn expected_display(err: &CtppError) -> &'static str {
         match err {
-            TlphError::InvalidHost => "uri host invalid for tlph",
-            TlphError::Json(e) => e.to_string().leak(),
-            TlphError::OutOfRange => "proof outside valid step range",
-            TlphError::PathAndQuery(e) => e.to_string().leak(),
-            TlphError::ProofFormat => "proof string format invalid for tlph",
-            TlphError::QueryString(e) => e.to_string().leak(),
-            TlphError::StepsTooFew => "time step count is too low",
-            TlphError::StepsTooMany => "time step count is too high",
-            TlphError::StepTooBig => "time step width is too big",
-            TlphError::StepTooSmall => "time step width is too small",
-            TlphError::TvParams(e) => e.to_string().leak(),
-            TlphError::UriBuilder(e) => e.to_string().leak(),
-            TlphError::UriParse => "parsed uri invalid for tlph",
-            TlphError::WrongSession => "proof does not match current session",
+            CtppError::InvalidHost => "uri host invalid for ctpp",
+            CtppError::Json(e) => e.to_string().leak(),
+            CtppError::OutOfRange => "proof outside valid step range",
+            CtppError::PathAndQuery(e) => e.to_string().leak(),
+            CtppError::ProofFormat => "proof string format invalid for ctpp",
+            CtppError::QueryString(e) => e.to_string().leak(),
+            CtppError::StepsTooFew => "time step count is too low",
+            CtppError::StepsTooMany => "time step count is too high",
+            CtppError::StepTooBig => "time step width is too big",
+            CtppError::StepTooSmall => "time step width is too small",
+            CtppError::TvParams(e) => e.to_string().leak(),
+            CtppError::UriBuilder(e) => e.to_string().leak(),
+            CtppError::UriParse => "parsed uri invalid for ctpp",
+            CtppError::WrongSession => "proof does not match current session",
         }
     }
 
-    fn json() -> TlphError {
+    fn json() -> CtppError {
         serde_json::from_str::<serde_json::Value>("{")
             .unwrap_err()
             .into()
     }
 
-    fn path_and_query() -> TlphError {
+    fn path_and_query() -> CtppError {
         http::Uri::from_str("").unwrap_err().into()
     }
 
-    fn query_string() -> TlphError {
+    fn query_string() -> CtppError {
         #[derive(Debug, serde::Deserialize)]
         struct Query {
             #[allow(dead_code)]
@@ -154,11 +154,11 @@ mod tests {
         serde_qs::from_str::<Query>("n=abc").unwrap_err().into()
     }
 
-    fn tv_params() -> TlphError {
+    fn tv_params() -> CtppError {
         traversev::Params::new(0, 1, 1, 1).unwrap_err().into()
     }
 
-    fn uri_builder() -> TlphError {
+    fn uri_builder() -> CtppError {
         http::uri::Builder::new()
             .scheme("not a scheme")
             .build()
@@ -166,22 +166,22 @@ mod tests {
             .into()
     }
 
-    fn all_variants() -> Vec<(TlphError, &'static str)> {
+    fn all_variants() -> Vec<(CtppError, &'static str)> {
         vec![
-            (TlphError::InvalidHost, "InvalidHost"),
+            (CtppError::InvalidHost, "InvalidHost"),
             (json(), "Json"),
-            (TlphError::OutOfRange, "OutOfRange"),
+            (CtppError::OutOfRange, "OutOfRange"),
             (path_and_query(), "PathAndQuery"),
-            (TlphError::ProofFormat, "ProofFormat"),
+            (CtppError::ProofFormat, "ProofFormat"),
             (query_string(), "QueryString"),
-            (TlphError::StepsTooFew, "StepsTooFew"),
-            (TlphError::StepsTooMany, "StepsTooMany"),
-            (TlphError::StepTooBig, "StepTooBig"),
-            (TlphError::StepTooSmall, "StepTooSmall"),
+            (CtppError::StepsTooFew, "StepsTooFew"),
+            (CtppError::StepsTooMany, "StepsTooMany"),
+            (CtppError::StepTooBig, "StepTooBig"),
+            (CtppError::StepTooSmall, "StepTooSmall"),
             (tv_params(), "TvParams"),
             (uri_builder(), "UriBuilder"),
-            (TlphError::UriParse, "UriParse"),
-            (TlphError::WrongSession, "WrongSession"),
+            (CtppError::UriParse, "UriParse"),
+            (CtppError::WrongSession, "WrongSession"),
         ]
     }
 
@@ -209,7 +209,7 @@ mod tests {
     #[test]
     fn conforms_to_std_error() {
         fn assert_bounds<T: Send + Sync + 'static>() {}
-        assert_bounds::<TlphError>();
+        assert_bounds::<CtppError>();
 
         for (err, name) in all_variants() {
             let expected = expected_display(&err);
@@ -236,9 +236,9 @@ mod tests {
 
         // Converts into a boxed error via `?`
         fn fallible() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-            Err(TlphError::InvalidHost)?
+            Err(CtppError::InvalidHost)?
         }
         let boxed = fallible().unwrap_err();
-        assert_eq!(boxed.to_string(), "uri host invalid for tlph");
+        assert_eq!(boxed.to_string(), "uri host invalid for ctpp");
     }
 }

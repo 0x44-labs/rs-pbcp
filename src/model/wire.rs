@@ -5,10 +5,10 @@ use ulid::Ulid;
 #[cfg(feature = "zeroize")]
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-use crate::errors::TlphError;
+use crate::errors::CtppError;
 
 pub(crate) trait Wire: Serialize {
-    fn path_and_query(&self) -> Result<PathAndQuery, TlphError>
+    fn path_and_query(&self) -> Result<PathAndQuery, CtppError>
     where
         Self: Sized,
     {
@@ -199,8 +199,8 @@ mod tests {
             .claim("iss", "https://humanity.example")
             .claim("sub", "Homo sapiens")
             .claim("aud", "https://humans-only.example")
-            .claim("iat", "1786554930")
-            .claim("exp", "1786561137")
+            .claim("iat", 1786554930)
+            .claim("exp", 1786561137)
             .build();
 
         message

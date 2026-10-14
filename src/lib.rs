@@ -1,15 +1,15 @@
 #![cfg_attr(not(feature = "zeroize"), allow(unused_mut))]
 //! ## Example
 //! ```
-//! use tlph::{Params, Message, Tlph, TvParams};
+//! use ctpp::{Params, Message, Ctpp, TvParams};
 //!
 //! fn main() {
 //!     let nonce = b"This is a challenge nonce".to_vec();
 //!     let tv = TvParams::new(12 * 1024, 3, 8, 12).unwrap();
 //!     let params = Params::new(tv, 30, 6, None).unwrap();
 //!
-//!     // Construct a new verifier peer for a TLPH session
-//!     let verifier = Tlph::new(nonce, &params);
+//!     // Construct a new verifier peer for a CTPP session
+//!     let verifier = Ctpp::new(nonce, &params);
 //!
 //!     // Create a challenge from the verifier peer
 //!     let challenge = verifier.to_challenge();
@@ -20,12 +20,12 @@
 //!         .claim("iss", "https://humanity.example")
 //!         .claim("sub", "Homo sapiens")
 //!         .claim("aud", "https://humans-only.example")
-//!         .claim("iat", "1786554930")
-//!         .claim("exp", "1786561137")
+//!         .claim("iat", 1786554930)
+//!         .claim("exp", 1786561137)
 //!         .build();
 //!
 //!     // Create a prover peer from the challenge
-//!     let prover = Tlph::from_challenge(&challenge);
+//!     let prover = Ctpp::from_challenge(&challenge);
 //!
 //!     // Mine a proof of the message
 //!     let proof = prover.prove(&message).unwrap();
@@ -51,16 +51,16 @@ use ulid::Ulid;
 #[cfg(feature = "zeroize")]
 use zeroize::Zeroize;
 
-pub use crate::errors::TlphError;
+pub use crate::errors::CtppError;
 pub use crate::model::{Challenge, Counter, Message, MessageBuilder, Proof};
 pub use crate::params::{Params, TvParams};
 
-/// Time-limited Proof of Humanity (TLPH) instance.
+/// Claim-Bound Time-Based Proof Protocol (CTPP) context.
 ///
 /// Construction derives a secret from the session identifier, nonce and
 /// parameters, and uses it to build a permissioned [TraverseV] instance. A
 /// session is shared as a [Challenge], from which any party can reconstruct
-/// an equivalent instance.
+/// an equivalent context.
 ///
 /// Proving mines a [Proof] of a [Message] bound to a time step. Verification
 /// checks that the proof belongs to this session, that the time step of its
@@ -68,7 +68,7 @@ pub use crate::params::{Params, TvParams};
 /// satisfies the difficulty. The valid range spans a limited number of time
 /// steps from the starting time step.
 #[derive(Debug)]
-pub struct Tlph {
+pub struct Ctpp {
     id: Ulid,
     start: u64,
     nonce: Vec<u8>,
@@ -76,10 +76,10 @@ pub struct Tlph {
     params: Params,
 }
 
-impl Tlph {
-    const CONTEXT: &str = "TLPH";
+impl Ctpp {
+    const CONTEXT: &str = "CTPP";
 
-    /// Create a new [Tlph] instance with a fresh session identifier, the
+    /// Create a new [Ctpp] instance with a fresh session identifier, the
     /// current time step as its start, and the given nonce and parameters.
     pub fn new(nonce: Vec<u8>, params: Params) -> Self {
         let id = Ulid::generate();
@@ -105,12 +105,12 @@ impl Tlph {
         }
     }
 
-    /// Create a [Challenge] from the session of this [Tlph] instance.
+    /// Create a [Challenge] from the session of this [Ctpp] instance.
     pub fn to_challenge(&self) -> Challenge {
         Challenge::new(self.id, self.start, &self.nonce, self.params)
     }
 
-    /// Create a [Tlph] instance from the given [Challenge].
+    /// Create a [Ctpp] instance from the given [Challenge].
     pub fn from_challenge(challenge: &Challenge) -> Self {
         let id = challenge.id();
         let nonce = challenge.nonce();
@@ -137,7 +137,7 @@ impl Tlph {
     }
 
     /// Mine a [Proof] of the given [Message] for this session.
-    pub fn prove(&self, message: &Message) -> Result<Proof, TlphError> {
+    pub fn prove(&self, message: &Message) -> Result<Proof, CtppError> {
         let mut input = message.to_bytes()?;
         let mut nonce: u128 = self.tv.mine(&input, Counter::default(), 1);
 
@@ -162,9 +162,9 @@ impl Tlph {
         &self,
         proof: &Proof,
         step: Option<u64>,
-    ) -> Result<bool, TlphError> {
+    ) -> Result<bool, CtppError> {
         if proof.id() != self.id {
-            return Err(TlphError::WrongSession);
+            return Err(CtppError::WrongSession);
         }
 
         let current = step.unwrap_or(self.params.time_step(None));
@@ -173,7 +173,7 @@ impl Tlph {
         let valid_range = self.start..=upper;
 
         if !valid_range.contains(&proof.message().step()) {
-            return Err(TlphError::OutOfRange);
+            return Err(CtppError::OutOfRange);
         }
 
         let mut input = match proof.message().to_bytes() {
@@ -238,7 +238,7 @@ impl Tlph {
 mod tests {
     use super::*;
 
-    type Error = TlphError;
+    type Error = CtppError;
 
     const TIME: u64 = 1786558105;
     const NONCE: &[u8] = b"This is a challenge nonce";
@@ -271,18 +271,18 @@ mod tests {
         let params = params();
 
         let before = params.time_step(None);
-        let tlph = Tlph::new(NONCE.to_vec(), params);
+        let ctpp = Ctpp::new(NONCE.to_vec(), params);
         let after = params.time_step(None);
 
-        assert!((before..=after).contains(&tlph.start()));
+        assert!((before..=after).contains(&ctpp.start()));
     }
 
     #[test]
     fn challenge_round_trip() {
         let params = params();
 
-        let original = Tlph::new(NONCE.to_vec(), params);
-        let reconstructed = Tlph::from_challenge(&original.to_challenge());
+        let original = Ctpp::new(NONCE.to_vec(), params);
+        let reconstructed = Ctpp::from_challenge(&original.to_challenge());
 
         assert_eq!(reconstructed.id(), original.id());
         assert_eq!(reconstructed.start(), original.start());
@@ -293,9 +293,9 @@ mod tests {
     #[test]
     fn proof_verifies() {
         let params = params();
-        let verifier = Tlph::new(NONCE.to_vec(), params);
+        let verifier = Ctpp::new(NONCE.to_vec(), params);
 
-        let prover = Tlph::from_challenge(&verifier.to_challenge());
+        let prover = Ctpp::from_challenge(&verifier.to_challenge());
         let proof = prover
             .prove(&message(prover.start()))
             .expect("any valid Message is provable");
@@ -310,9 +310,9 @@ mod tests {
     #[test]
     fn verify_rejects_wrong_session() {
         let params = params();
-        let verifier = Tlph::new(b"Verifier".to_vec(), params);
+        let verifier = Ctpp::new(b"Verifier".to_vec(), params);
 
-        let prover = Tlph::new(b"Prover".to_vec(), params);
+        let prover = Ctpp::new(b"Prover".to_vec(), params);
         let proof = prover
             .prove(&message(time_step()))
             .expect("any valid Message is provable");
@@ -324,7 +324,7 @@ mod tests {
     #[test]
     fn verify_rejects_out_of_range() {
         let params = params();
-        let verifier = Tlph::new(NONCE.to_vec(), params);
+        let verifier = Ctpp::new(NONCE.to_vec(), params);
 
         let start = verifier.start();
         let l = verifier.params().l();
@@ -348,11 +348,11 @@ mod tests {
         let id = Ulid::generate();
         let params = params();
         let challenge = Challenge::new(id, time_step(), NONCE, params);
-        let tlph = Tlph::from_challenge(&challenge);
+        let ctpp = Ctpp::from_challenge(&challenge);
 
-        assert_eq!(tlph.id(), id);
-        assert_eq!(tlph.start(), time_step());
-        assert_eq!(tlph.nonce(), &NONCE.to_vec());
-        assert_eq!(tlph.params(), params);
+        assert_eq!(ctpp.id(), id);
+        assert_eq!(ctpp.start(), time_step());
+        assert_eq!(ctpp.nonce(), &NONCE.to_vec());
+        assert_eq!(ctpp.params(), params);
     }
 }

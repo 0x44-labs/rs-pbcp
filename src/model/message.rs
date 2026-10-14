@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 #[cfg(feature = "zeroize")]
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-use crate::errors::TlphError;
+use crate::errors::CtppError;
 
 /// A `Message` represents a set of named claims bound to a time step.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -21,22 +21,22 @@ impl Message {
     }
 
     /// Parse a [Message] from a JSON string.
-    pub fn from_json(json: &str) -> Result<Self, TlphError> {
+    pub fn from_json(json: &str) -> Result<Self, CtppError> {
         Ok(serde_json::from_str(json)?)
     }
 
     /// Serialise this [Message] to a JSON string.
-    pub fn to_json(&self) -> Result<String, TlphError> {
+    pub fn to_json(&self) -> Result<String, CtppError> {
         Ok(serde_json::to_string(self)?)
     }
 
     /// Parse a [Message] from JSON-encoded bytes.
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, TlphError> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, CtppError> {
         Ok(serde_json::from_slice(bytes)?)
     }
 
     /// Serialise this [Message] to JSON bytes in canonical form.
-    pub fn to_bytes(&self) -> Result<Vec<u8>, TlphError> {
+    pub fn to_bytes(&self) -> Result<Vec<u8>, CtppError> {
         Ok(serde_json_canonicalizer::to_vec(self)?)
     }
 
@@ -194,8 +194,8 @@ mod tests {
             .claim("iss", "https://humanity.example")
             .claim("sub", "Homo sapiens")
             .claim("aud", "https://humans-only.example")
-            .claim("iat", "1786554930")
-            .claim("exp", "1786561137")
+            .claim("iat", 1786554930)
+            .claim("exp", 1786561137)
             .build();
 
         message
