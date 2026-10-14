@@ -1,4 +1,4 @@
-use num_traits::ToBytes;
+use num_traits::{FromBytes, ToBytes};
 use std::{
     ops::AddAssign,
     time::{SystemTime, UNIX_EPOCH},
@@ -79,6 +79,25 @@ impl ToBytes for Counter {
 
     fn to_ne_bytes(&self) -> Self::Bytes {
         self.0.to_ne_bytes()
+    }
+}
+
+impl FromBytes for Counter {
+    type Bytes = [u8; 16];
+
+    fn from_be_bytes(bytes: &Self::Bytes) -> Self {
+        let inner = u128::from_be_bytes(*bytes);
+        Self(inner)
+    }
+
+    fn from_le_bytes(bytes: &Self::Bytes) -> Self {
+        let inner = u128::from_le_bytes(*bytes);
+        Self(inner)
+    }
+
+    fn from_ne_bytes(bytes: &Self::Bytes) -> Self {
+        let inner = u128::from_ne_bytes(*bytes);
+        Self(inner)
     }
 }
 
@@ -204,6 +223,33 @@ mod tests {
             } else {
                 be
             }
+        );
+    }
+
+    #[test]
+    fn from_bytes_byte_order() {
+        let count = 16u64;
+        let expected = pack_values(count, TIME);
+
+        // Build the expected byte orders from the two u64 halves.
+        let be: [u8; 16] = [TIME.to_be_bytes(), count.to_be_bytes()]
+            .concat()
+            .try_into()
+            .unwrap();
+        let le: [u8; 16] = [count.to_le_bytes(), TIME.to_le_bytes()]
+            .concat()
+            .try_into()
+            .unwrap();
+
+        assert_eq!(Counter::from_be_bytes(&be), expected);
+        assert_eq!(Counter::from_le_bytes(&le), expected);
+        assert_eq!(
+            Counter::from_ne_bytes(&if cfg!(target_endian = "little") {
+                le
+            } else {
+                be
+            }),
+            expected
         );
     }
 
