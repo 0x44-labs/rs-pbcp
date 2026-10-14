@@ -3,6 +3,8 @@ use std::{
     ops::AddAssign,
     time::{SystemTime, UNIX_EPOCH},
 };
+#[cfg(feature = "zeroize")]
+use zeroize::Zeroize;
 
 /// A `u128` value packing a count in the low 64 bits with a Unix timestamp
 /// (in seconds) in the high 64 bits.
@@ -131,6 +133,13 @@ impl From<u128> for Counter {
 impl From<Counter> for u128 {
     fn from(value: Counter) -> Self {
         value.0
+    }
+}
+
+#[cfg(feature = "zeroize")]
+impl Zeroize for Counter {
+    fn zeroize(&mut self) {
+        self.0.zeroize();
     }
 }
 

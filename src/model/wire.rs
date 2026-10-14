@@ -151,7 +151,7 @@ mod b64url_array {
         })?;
         let deserialized = <[u8; 16]>::try_from(bytes.as_slice());
 
-        let mut deserialized = deserialized.map_err(|_| {
+        let deserialized = deserialized.map_err(|_| {
             <D::Error as serde::de::Error>::custom(
                 "value must decode to 16 bytes",
             )

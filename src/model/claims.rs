@@ -50,7 +50,7 @@ impl Claims {
 #[cfg(feature = "zeroize")]
 impl Zeroize for Claims {
     fn zeroize(&mut self) {
-        for (mut k, mut v) in std::mem::take(&mut self.claims) {
+        for (mut k, mut v) in std::mem::take(&mut self.0) {
             k.zeroize();
             wipe_value(&mut v);
         }
@@ -118,7 +118,7 @@ impl ClaimsBuilder {
 #[cfg(feature = "zeroize")]
 impl Zeroize for ClaimsBuilder {
     fn zeroize(&mut self) {
-        for (mut k, mut v) in std::mem::take(&mut self.claims) {
+        for (mut k, mut v) in std::mem::take(&mut self.0) {
             k.zeroize();
             wipe_value(&mut v);
         }
