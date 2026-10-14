@@ -1,14 +1,14 @@
 /// Errors returned by CTPP.
 #[derive(Debug)]
 pub enum CtppError {
+    /// Submitted proof is expired.
+    Expired,
+
     /// URI host invalid for CTPP.
     InvalidHost,
 
     /// Message could not be JSON serialised/deserialised.
     Json(serde_json::Error),
-
-    /// Proof outside valid step range.
-    OutOfRange,
 
     /// Invalid parameters for TraverseV.
     Params(traversev::TraverseVErr),
@@ -21,6 +21,9 @@ pub enum CtppError {
 
     /// Could not serialise/deserialise querystring.
     QueryString(serde_qs::Error),
+
+    /// Challenge exceeded the configured costs.
+    TooCostly,
 
     /// Failed to build URI.
     UriBuilder(http::Error),
@@ -35,13 +38,14 @@ pub enum CtppError {
 impl std::fmt::Display for CtppError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let msg = match self {
+            Self::Expired => "submitted proof is expired",
             Self::InvalidHost => "uri host invalid for ctpp",
             Self::Json(e) => return core::fmt::Display::fmt(e, f),
-            Self::OutOfRange => "proof outside valid step range",
             Self::Params(e) => return core::fmt::Display::fmt(e, f),
             Self::PathAndQuery(e) => return core::fmt::Display::fmt(e, f),
             Self::ProofFormat => "proof string format invalid for ctpp",
             Self::QueryString(e) => return core::fmt::Display::fmt(e, f),
+            Self::TooCostly => "challenge exceeded the configured costs",
             Self::UriBuilder(e) => return core::fmt::Display::fmt(e, f),
             Self::UriParse => "parsed uri invalid for ctpp",
             Self::WrongChallenge => "proof submitted to wrong challenge",
@@ -102,13 +106,14 @@ mod tests {
     /// Expected [Display](core::fmt::Display) output.
     fn expected_display(err: &CtppError) -> &'static str {
         match err {
+            CtppError::Expired => "submitted proof is expired",
             CtppError::InvalidHost => "uri host invalid for ctpp",
             CtppError::Json(e) => e.to_string().leak(),
-            CtppError::OutOfRange => "proof outside valid step range",
             CtppError::Params(e) => e.to_string().leak(),
             CtppError::PathAndQuery(e) => e.to_string().leak(),
             CtppError::ProofFormat => "proof string format invalid for ctpp",
             CtppError::QueryString(e) => e.to_string().leak(),
+            CtppError::TooCostly => "challenge exceeded the configured costs",
             CtppError::UriBuilder(e) => e.to_string().leak(),
             CtppError::UriParse => "parsed uri invalid for ctpp",
             CtppError::WrongChallenge => "proof submitted to wrong challenge",
@@ -148,11 +153,12 @@ mod tests {
 
     fn all_variants() -> Vec<(CtppError, &'static str)> {
         vec![
+            (CtppError::Expired, "Expired"),
             (CtppError::InvalidHost, "InvalidHost"),
             (json(), "Json"),
-            (CtppError::OutOfRange, "OutOfRange"),
             (path_and_query(), "PathAndQuery"),
             (CtppError::ProofFormat, "ProofFormat"),
+            (CtppError::TooCostly, "TooCostly"),
             (query_string(), "QueryString"),
             (tv_params(), "TvParams"),
             (uri_builder(), "UriBuilder"),

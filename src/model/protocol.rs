@@ -13,23 +13,28 @@ use crate::model::{ChallengeWire, Claims, Counter, ProofWire, Wire};
 
 const SCHEME: &str = "ctpp";
 
-/// A `Challenge` represents a challenge identifier, TTL (in seconds), nonce
-/// value, and TraverseV parameters.
+/// A `Challenge` represents a challenge identifier, time of expiration (in
+/// seconds), nonce value, and TraverseV parameters.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Challenge {
     id: Ulid,
-    ttl: u64,
+    expires_at: u64,
     nonce: Vec<u8>,
     params: Params,
 }
 
 impl Challenge {
-    /// Create a new [Challenge] with the given challenge identifier, TTL,
-    /// nonce, and TraverseV parameters.
-    pub fn new(id: Ulid, ttl: u64, nonce: &[u8], params: Params) -> Self {
+    /// Create a new [Challenge] with the given challenge identifier, time
+    /// of expiration, nonce, and TraverseV parameters.
+    pub fn new(
+        id: Ulid,
+        expires_at: u64,
+        nonce: &[u8],
+        params: Params,
+    ) -> Self {
         Self {
             id,
-            ttl,
+            expires_at,
             nonce: nonce.to_vec(),
             params,
         }
@@ -40,7 +45,7 @@ impl Challenge {
     pub fn to_uri(&self) -> Result<Uri, CtppError> {
         let wire = ChallengeWire {
             id: self.id,
-            ttl: self.ttl,
+            expires_at: self.expires_at,
             nonce: self.nonce.to_vec(),
             m_cost: non_default(self.params.m_cost(), Params::DEFAULT_M),
             t_cost: non_default(self.params.t_cost(), Params::DEFAULT_T),
@@ -74,7 +79,7 @@ impl Challenge {
 
         Ok(Challenge {
             id: wire.id,
-            ttl: wire.ttl,
+            expires_at: wire.expires_at,
             nonce: wire.nonce,
             params,
         })
@@ -85,9 +90,9 @@ impl Challenge {
         self.id
     }
 
-    /// Returns the challenge TTL.
-    pub const fn ttl(&self) -> u64 {
-        self.ttl
+    /// Returns the time of challenge expiration.
+    pub const fn expires_at(&self) -> u64 {
+        self.expires_at
     }
 
     /// Returns a reference to the nonce.
@@ -273,18 +278,19 @@ mod tests {
 
     type Error = CtppError;
 
+    const TIME: u64 = 1786558105;
     const TTL: u64 = 300;
     const NONCE: &[u8] = b"This is a challenge nonce";
 
     fn challenge(id: Ulid, params: Params) -> Challenge {
-        Challenge::new(id, TTL, NONCE, params)
+        Challenge::new(id, TIME + TTL, NONCE, params)
     }
 
     fn challenge_query() -> String {
         format!(
-            "id={}&ttl={}&nonce={}",
+            "id={}&expires_at={}&nonce={}",
             Ulid::generate(),
-            TTL,
+            TIME + TTL,
             URL_SAFE_NO_PAD.encode(NONCE)
         )
     }
@@ -338,7 +344,7 @@ mod tests {
         let challenge = challenge(id, params);
 
         assert_eq!(challenge.id(), id);
-        assert_eq!(challenge.ttl(), TTL);
+        assert_eq!(challenge.expires_at(), TIME + TTL);
         assert_eq!(challenge.nonce(), &NONCE.to_vec());
         assert_eq!(challenge.params(), params);
     }

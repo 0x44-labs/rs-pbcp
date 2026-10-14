@@ -32,7 +32,7 @@ pub(crate) trait Wire: Serialize {
 #[serde(deny_unknown_fields)]
 pub(crate) struct ChallengeWire {
     pub(crate) id: Ulid,
-    pub(crate) ttl: u64,
+    pub(crate) expires_at: u64,
     #[serde(with = "b64url_vec")]
     pub(crate) nonce: Vec<u8>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -188,19 +188,19 @@ mod tests {
     #[test]
     fn challenge_path_and_query_layout() {
         let id = Ulid::generate();
-        let ttl = 300;
+        let expires_at = TIME + 300;
         let nonce = b"This is a challenge nonce".to_vec();
 
         let expected = format!(
-            "/?id={}&ttl={}&nonce={}",
+            "/?id={}&expires_at={}&nonce={}",
             id,
-            ttl,
+            expires_at,
             URL_SAFE_NO_PAD.encode(&nonce)
         );
 
         let wire = ChallengeWire {
             id,
-            ttl,
+            expires_at,
             nonce,
             m_cost: None,
             t_cost: None,
