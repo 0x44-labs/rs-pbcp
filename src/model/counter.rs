@@ -18,6 +18,18 @@ impl Counter {
         Self(Self::pack(count, time))
     }
 
+    /// Returns the count held in the low 64 bits.
+    pub fn count(&self) -> u64 {
+        let (count, _) = self.unpack();
+        count
+    }
+
+    /// Returns the Unix timestamp (in seconds) held in the high 64 bits.
+    pub fn time(&self) -> u64 {
+        let (_, time) = self.unpack();
+        time
+    }
+
     fn now() -> u64 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -136,6 +148,16 @@ mod tests {
             assert_eq!(unpacked.0, count);
             assert!((before..=after).contains(&unpacked.1))
         }
+    }
+
+    #[test]
+    fn accessors_return_their_own_field() {
+        let before = now();
+        let counter = Counter::default();
+        let after = now();
+
+        assert_eq!(counter.count(), 0);
+        assert!((before..=after).contains(&counter.time()))
     }
 
     #[test]
