@@ -59,7 +59,7 @@ impl Wire for ChallengeWire {}
 pub(crate) struct ProofWire {
     pub(crate) id: Ulid,
     #[serde(with = "base64url")]
-    pub(crate) message: Vec<u8>,
+    pub(crate) claims: Vec<u8>,
     #[serde(with = "base64url_u128")]
     pub(crate) nonce: u128,
 }
@@ -69,7 +69,7 @@ impl Wire for ProofWire {}
 #[cfg(feature = "zeroize")]
 impl Zeroize for ProofWire {
     fn zeroize(&mut self) {
-        self.message.zeroize();
+        self.claims.zeroize();
         self.nonce.zeroize();
     }
 }
@@ -176,7 +176,7 @@ mod base64url_u128 {
 mod tests {
     use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 
-    use crate::{Params, model::Message};
+    use crate::{Params, model::Claims};
 
     use super::*;
 
@@ -193,17 +193,14 @@ mod tests {
         params.time_step(Some(TIME))
     }
 
-    fn message() -> Message {
-        let step = time_step();
-        let message = Message::builder(step)
+    fn claims() -> Claims {
+        Claims::builder()
             .claim("iss", "https://humanity.example")
             .claim("sub", "Homo sapiens")
             .claim("aud", "https://humans-only.example")
             .claim("iat", 1786554930)
             .claim("exp", 1786561137)
-            .build();
-
-        message
+            .build()
     }
 
     #[test]
@@ -241,19 +238,19 @@ mod tests {
     #[test]
     fn proof_path_and_query_layout() {
         let id = Ulid::generate();
-        let message = message()
+        let claims = claims()
             .to_bytes()
-            .expect("valid Message serialises to canonical JSON bytes");
+            .expect("valid Claims serialise to canonical JSON bytes");
         let nonce = 0u128;
 
         let expected = format!(
-            "/?id={}&message={}&nonce={}",
+            "/?id={}&claims={}&nonce={}",
             id,
-            URL_SAFE_NO_PAD.encode(&message),
+            URL_SAFE_NO_PAD.encode(&claims),
             URL_SAFE_NO_PAD.encode(&nonce.to_le_bytes())
         );
 
-        let wire = ProofWire { id, message, nonce };
+        let wire = ProofWire { id, claims, nonce };
         let p_and_q = wire
             .path_and_query()
             .expect("valid wire builds path and query");
@@ -263,8 +260,8 @@ mod tests {
 
     #[test]
     fn base64url_round_trip() {
-        let message = message();
-        let original = Base64Url(message.to_bytes().unwrap().to_vec());
+        let claims = claims();
+        let original = Base64Url(claims.to_bytes().unwrap().to_vec());
         let json =
             serde_json::to_string(&original).expect("valid bytes serialise");
 

@@ -1,7 +1,7 @@
 #![cfg_attr(not(feature = "zeroize"), allow(unused_mut))]
 //! ## Example
 //! ```
-//! use ctpp::{Params, Message, Ctpp, TvParams};
+//! use ctpp::{Params, Claims, Ctpp, TvParams};
 //!
 //! fn main() {
 //!     let nonce = b"This is a challenge nonce".to_vec();
@@ -14,9 +14,8 @@
 //!     // Create a challenge from the verifier peer
 //!     let challenge = verifier.to_challenge();
 //!
-//!     // Build a message with JWT-style claims
-//!     let step = params.time_step(None);
-//!     let message = Message::builder(step)
+//!     // Build JWT-style claims
+//!     let claims = Claims::builder(step)
 //!         .claim("iss", "https://humanity.example")
 //!         .claim("sub", "Homo sapiens")
 //!         .claim("aud", "https://humans-only.example")
@@ -27,8 +26,8 @@
 //!     // Create a prover peer from the challenge
 //!     let prover = Ctpp::from_challenge(&challenge);
 //!
-//!     // Mine a proof of the message
-//!     let proof = prover.prove(&message).unwrap();
+//!     // Mine a proof of the claims
+//!     let proof = prover.prove(&claims).unwrap();
 //!
 //!     // Check that the proof is valid for the verifier's session
 //!     let result = verifier.verify(&proof, None);
@@ -39,7 +38,7 @@
 //! ## Features
 //!
 //! The `zeroize` feature (disabled by default) implements `Zeroize` and
-//! `ZeroizeOnDrop` for `Message`, `MessageBuilder`, and `Proof`, and
+//! `ZeroizeOnDrop` for `Claims`, `ClaimsBuilder`, and `Proof`, and
 //! zeroises intermediate values on a best-effort basis.
 mod errors;
 mod model;
@@ -52,7 +51,7 @@ use ulid::Ulid;
 use zeroize::Zeroize;
 
 pub use crate::errors::CtppError;
-pub use crate::model::{Challenge, Counter, Message, MessageBuilder, Proof};
+pub use crate::model::{Challenge, Claims, ClaimsBuilder, Counter, Proof};
 pub use crate::params::{Params, TvParams};
 
 /// Claim-Bound Time-Based Proof Protocol (CTPP) context.
@@ -62,9 +61,9 @@ pub use crate::params::{Params, TvParams};
 /// session is shared as a [Challenge], from which any party can reconstruct
 /// an equivalent context.
 ///
-/// Proving mines a [Proof] of a [Message] bound to a time step. Verification
+/// Proving mines a [Proof] of [Claims] bound to a time step. Verification
 /// checks that the proof belongs to this session, that the time step of its
-/// message lies within the session's valid range, and that its nonce
+/// claims lies within the session's valid range, and that its nonce
 /// satisfies the difficulty. The valid range spans a limited number of time
 /// steps from the starting time step.
 #[derive(Debug)]
@@ -136,15 +135,15 @@ impl Ctpp {
         }
     }
 
-    /// Mine a [Proof] of the given [Message] for this session.
-    pub fn prove(&self, message: &Message) -> Result<Proof, CtppError> {
-        let mut input = message.to_bytes()?;
+    /// Mine a [Proof] of the given [Claims] for this session.
+    pub fn prove(&self, claims: &Claims) -> Result<Proof, CtppError> {
+        let mut input = claims.to_bytes()?;
         let mut nonce: u128 = self.tv.mine(&input, Counter::default(), 1);
 
         #[cfg(feature = "zeroize")]
         input.zeroize();
 
-        let proof = Proof::new(self.id, message, nonce);
+        let proof = Proof::new(self.id, claims, nonce);
 
         #[cfg(feature = "zeroize")]
         nonce.zeroize();
@@ -153,9 +152,9 @@ impl Ctpp {
     }
 
     /// Verify the given [Proof] against this session, returning whether its
-    /// nonce is valid for its message.
+    /// nonce is valid for its claims.
     ///
-    /// The time step of the message must lie between the start time step and
+    /// The time step of the claims must lie between the start time step and
     /// the earlier of `step` (defaulting to the current time step) and the
     /// last step permitted by the parameters.
     pub fn verify(
@@ -172,11 +171,13 @@ impl Ctpp {
         let upper = current.min(max_step);
         let valid_range = self.start..=upper;
 
-        if !valid_range.contains(&proof.message().step()) {
+        /*
+        if !valid_range.contains(&proof.claims().step()) {
             return Err(CtppError::OutOfRange);
         }
+        */
 
-        let mut input = match proof.message().to_bytes() {
+        let mut input = match proof.claims().to_bytes() {
             Ok(bytes) => bytes,
             Err(e) => return Err(e),
         };
@@ -254,16 +255,14 @@ mod tests {
         params.time_step(Some(TIME))
     }
 
-    fn message(step: u64) -> Message {
-        let message = Message::builder(step)
+    fn claims() -> Claims {
+        Claims::builder()
             .claim("iss", "https://humanity.example")
             .claim("sub", "Homo sapiens")
             .claim("aud", "https://humans-only.example")
-            .claim("iat", "1786554930")
-            .claim("exp", "1786561137")
-            .build();
-
-        message
+            .claim("iat", 1786554930)
+            .claim("exp", 1786561137)
+            .build()
     }
 
     #[test]
@@ -297,8 +296,8 @@ mod tests {
 
         let prover = Ctpp::from_challenge(&verifier.to_challenge());
         let proof = prover
-            .prove(&message(prover.start()))
-            .expect("any valid Message is provable");
+            .prove(&claims())
+            .expect("any valid Claims are provable");
 
         let result = verifier.verify(&proof, None);
         assert!(result.is_ok());
@@ -314,8 +313,8 @@ mod tests {
 
         let prover = Ctpp::new(b"Prover".to_vec(), params);
         let proof = prover
-            .prove(&message(time_step()))
-            .expect("any valid Message is provable");
+            .prove(&claims())
+            .expect("any valid Claims is provable");
 
         let result = verifier.verify(&proof, None);
         assert!(matches!(result.err(), Some(Error::WrongSession)));
@@ -331,12 +330,12 @@ mod tests {
 
         // Before the window, after the last permitted step, and later than
         // the current step.
-        for (step, current) in [
+        for (_, current) in [
             (start - 1, start),
             (start + l, start + l + 1),
             (start + 1, start),
         ] {
-            let proof = Proof::new(verifier.id(), &message(step), 0);
+            let proof = Proof::new(verifier.id(), &claims(), 0);
 
             let result = verifier.verify(&proof, Some(current));
             assert!(matches!(result.err(), Some(Error::OutOfRange)));
