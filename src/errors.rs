@@ -10,6 +10,9 @@ pub enum CtppError {
     /// Proof outside valid step range.
     OutOfRange,
 
+    /// Invalid parameters for TraverseV.
+    Params(traversev::TraverseVErr),
+
     /// Unable to construct path and query.
     PathAndQuery(http::uri::InvalidUri),
 
@@ -19,29 +22,14 @@ pub enum CtppError {
     /// Could not serialise/deserialise querystring.
     QueryString(serde_qs::Error),
 
-    /// Time step count is too low.
-    StepsTooFew,
-
-    /// Time step count is too high.
-    StepsTooMany,
-
-    /// Time step width is too big.
-    StepTooBig,
-
-    /// Time step width is too small.
-    StepTooSmall,
-
-    /// Invalid parameters for TraverseV.
-    TvParams(traversev::TraverseVErr),
-
     /// Failed to build URI.
     UriBuilder(http::Error),
 
     /// Parsed URI invalid for CTPP.
     UriParse,
 
-    /// Proof does not match current session.
-    WrongSession,
+    /// Proof submitted to wrong challenge.
+    WrongChallenge,
 }
 
 impl std::fmt::Display for CtppError {
@@ -50,17 +38,13 @@ impl std::fmt::Display for CtppError {
             Self::InvalidHost => "uri host invalid for ctpp",
             Self::Json(e) => return core::fmt::Display::fmt(e, f),
             Self::OutOfRange => "proof outside valid step range",
+            Self::Params(e) => return core::fmt::Display::fmt(e, f),
             Self::PathAndQuery(e) => return core::fmt::Display::fmt(e, f),
             Self::ProofFormat => "proof string format invalid for ctpp",
             Self::QueryString(e) => return core::fmt::Display::fmt(e, f),
-            Self::StepsTooFew => "time step count is too low",
-            Self::StepsTooMany => "time step count is too high",
-            Self::StepTooBig => "time step width is too big",
-            Self::StepTooSmall => "time step width is too small",
-            Self::TvParams(e) => return core::fmt::Display::fmt(e, f),
             Self::UriBuilder(e) => return core::fmt::Display::fmt(e, f),
             Self::UriParse => "parsed uri invalid for ctpp",
-            Self::WrongSession => "proof does not match current session",
+            Self::WrongChallenge => "proof submitted to wrong challenge",
         };
         f.write_str(msg)
     }
@@ -70,9 +54,9 @@ impl std::error::Error for CtppError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Json(e) => Some(e),
+            Self::Params(e) => Some(e),
             Self::PathAndQuery(e) => Some(e),
             Self::QueryString(e) => Some(e),
-            Self::TvParams(e) => Some(e),
             Self::UriBuilder(e) => Some(e),
             _ => None,
         }
@@ -85,6 +69,12 @@ impl From<serde_json::Error> for CtppError {
     }
 }
 
+impl From<traversev::TraverseVErr> for CtppError {
+    fn from(value: traversev::TraverseVErr) -> Self {
+        Self::Params(value)
+    }
+}
+
 impl From<http::uri::InvalidUri> for CtppError {
     fn from(value: http::uri::InvalidUri) -> Self {
         Self::PathAndQuery(value)
@@ -94,12 +84,6 @@ impl From<http::uri::InvalidUri> for CtppError {
 impl From<serde_qs::Error> for CtppError {
     fn from(value: serde_qs::Error) -> Self {
         Self::QueryString(value)
-    }
-}
-
-impl From<traversev::TraverseVErr> for CtppError {
-    fn from(value: traversev::TraverseVErr) -> Self {
-        Self::TvParams(value)
     }
 }
 
@@ -121,17 +105,13 @@ mod tests {
             CtppError::InvalidHost => "uri host invalid for ctpp",
             CtppError::Json(e) => e.to_string().leak(),
             CtppError::OutOfRange => "proof outside valid step range",
+            CtppError::Params(e) => e.to_string().leak(),
             CtppError::PathAndQuery(e) => e.to_string().leak(),
             CtppError::ProofFormat => "proof string format invalid for ctpp",
             CtppError::QueryString(e) => e.to_string().leak(),
-            CtppError::StepsTooFew => "time step count is too low",
-            CtppError::StepsTooMany => "time step count is too high",
-            CtppError::StepTooBig => "time step width is too big",
-            CtppError::StepTooSmall => "time step width is too small",
-            CtppError::TvParams(e) => e.to_string().leak(),
             CtppError::UriBuilder(e) => e.to_string().leak(),
             CtppError::UriParse => "parsed uri invalid for ctpp",
-            CtppError::WrongSession => "proof does not match current session",
+            CtppError::WrongChallenge => "proof submitted to wrong challenge",
         }
     }
 
@@ -174,14 +154,10 @@ mod tests {
             (path_and_query(), "PathAndQuery"),
             (CtppError::ProofFormat, "ProofFormat"),
             (query_string(), "QueryString"),
-            (CtppError::StepsTooFew, "StepsTooFew"),
-            (CtppError::StepsTooMany, "StepsTooMany"),
-            (CtppError::StepTooBig, "StepTooBig"),
-            (CtppError::StepTooSmall, "StepTooSmall"),
             (tv_params(), "TvParams"),
             (uri_builder(), "UriBuilder"),
             (CtppError::UriParse, "UriParse"),
-            (CtppError::WrongSession, "WrongSession"),
+            (CtppError::WrongChallenge, "WrongChallenge"),
         ]
     }
 

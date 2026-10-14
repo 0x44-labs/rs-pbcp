@@ -3,33 +3,33 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use http::Uri;
 use num_traits::{FromBytes, ToBytes};
 use serde_qs;
+use traversev::Params;
 use ulid::Ulid;
 #[cfg(feature = "zeroize")]
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::errors::CtppError;
 use crate::model::{ChallengeWire, Claims, Counter, ProofWire, Wire};
-use crate::params::{Params, TvParams};
 
 const SCHEME: &str = "ctpp";
 
-/// A `Challenge` represents a session identifier, a start time step, a nonce
-/// and a set of parameters.
+/// A `Challenge` represents a challenge identifier, TTL (in seconds), nonce
+/// value, and TraverseV parameters.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Challenge {
     id: Ulid,
-    start: u64,
+    ttl: u64,
     nonce: Vec<u8>,
     params: Params,
 }
 
 impl Challenge {
-    /// Create a new [Challenge] with the given session identifier, starting
-    /// time step, nonce, and parameters.
-    pub fn new(id: Ulid, start: u64, nonce: &[u8], params: Params) -> Self {
+    /// Create a new [Challenge] with the given challenge identifier, TTL,
+    /// nonce, and TraverseV parameters.
+    pub fn new(id: Ulid, ttl: u64, nonce: &[u8], params: Params) -> Self {
         Self {
             id,
-            start,
+            ttl,
             nonce: nonce.to_vec(),
             params,
         }
@@ -38,18 +38,14 @@ impl Challenge {
     /// Serialise this [Challenge] to a `ctpp://challenge` URI, omitting
     /// parameters that have their default values.
     pub fn to_uri(&self) -> Result<Uri, CtppError> {
-        let tv = self.params.tv();
         let wire = ChallengeWire {
             id: self.id,
-            start: self.start,
+            ttl: self.ttl,
             nonce: self.nonce.to_vec(),
-            m_cost: non_default(tv.m_cost(), TvParams::DEFAULT_M),
-            t_cost: non_default(tv.t_cost(), TvParams::DEFAULT_T),
-            e_cost: non_default(tv.e_cost(), TvParams::DEFAULT_E),
-            n_cost: non_default(tv.n_cost(), TvParams::DEFAULT_N),
-            x: non_default(self.params.x(), Params::DEFAULT_X),
-            l: non_default(self.params.l(), Params::DEFAULT_L),
-            t0: non_default(self.params.t0(), Params::DEFAULT_T0),
+            m_cost: non_default(self.params.m_cost(), Params::DEFAULT_M),
+            t_cost: non_default(self.params.t_cost(), Params::DEFAULT_T),
+            e_cost: non_default(self.params.e_cost(), Params::DEFAULT_E),
+            n_cost: non_default(self.params.n_cost(), Params::DEFAULT_N),
         };
 
         let p_and_q = wire.path_and_query()?;
@@ -68,37 +64,30 @@ impl Challenge {
         let query = host_query(uri, "challenge")?;
         let wire: ChallengeWire = serde_qs::from_str(query)?;
 
-        let tv = traversev::Params::new(
+        let params = Params::new(
             wire.m_cost.unwrap_or(traversev::Params::DEFAULT_M),
             wire.t_cost.unwrap_or(traversev::Params::DEFAULT_T),
             wire.e_cost.unwrap_or(traversev::Params::DEFAULT_E),
             wire.n_cost.unwrap_or(traversev::Params::DEFAULT_N),
         )
-        .map_err(|e| CtppError::TvParams(e))?;
-
-        let params = Params::new(
-            tv,
-            wire.x.unwrap_or(Params::DEFAULT_X),
-            wire.l.unwrap_or(Params::DEFAULT_L),
-            wire.t0,
-        )?;
+        .map_err(|e| CtppError::Params(e))?;
 
         Ok(Challenge {
             id: wire.id,
-            start: wire.start,
+            ttl: wire.ttl,
             nonce: wire.nonce,
             params,
         })
     }
 
-    /// Returns the session identifier.
+    /// Returns the challenge identifier.
     pub const fn id(&self) -> Ulid {
         self.id
     }
 
-    /// Returns the starting time step.
-    pub const fn start(&self) -> u64 {
-        self.start
+    /// Returns the challenge TTL.
+    pub const fn ttl(&self) -> u64 {
+        self.ttl
     }
 
     /// Returns a reference to the nonce.
@@ -113,7 +102,7 @@ impl Challenge {
 }
 
 /// A `Proof` represents a [Claims] and the mined nonce that proves it,
-/// bound to a session identifier.
+/// bound to a challenge identifier.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Proof {
     id: Ulid,
@@ -122,7 +111,7 @@ pub struct Proof {
 }
 
 impl Proof {
-    /// Create a new [Proof] for the given session identifier, claims and
+    /// Create a new [Proof] for the given challenge identifier, claims and
     /// nonce.
     pub fn new(id: Ulid, claims: &Claims, nonce: Counter) -> Self {
         Self {
@@ -212,7 +201,7 @@ impl Proof {
         Ok(proof)
     }
 
-    /// Returns the session identifier.
+    /// Returns the challenge identifier.
     pub const fn id(&self) -> Ulid {
         self.id
     }
@@ -284,24 +273,18 @@ mod tests {
 
     type Error = CtppError;
 
-    const TIME: u64 = 1786558105;
+    const TTL: u64 = 300;
     const NONCE: &[u8] = b"This is a challenge nonce";
 
-    fn time_step() -> u64 {
-        let params = Params::default();
-        params.time_step(Some(TIME))
-    }
-
     fn challenge(id: Ulid, params: Params) -> Challenge {
-        let step = time_step();
-        Challenge::new(id, step, NONCE, params)
+        Challenge::new(id, TTL, NONCE, params)
     }
 
     fn challenge_query() -> String {
         format!(
-            "id={}&start={}&nonce={}",
+            "id={}&ttl={}&nonce={}",
             Ulid::generate(),
-            time_step(),
+            TTL,
             URL_SAFE_NO_PAD.encode(NONCE)
         )
     }
@@ -333,8 +316,8 @@ mod tests {
     #[test]
     fn challenge_uri_round_trip() {
         let default_params = Params::default();
-        let tv = TvParams::new(16 * 1024, 2, 4, 12).expect("valid TV params");
-        let custom_params = Params::new(tv, 60, 5, None).expect("valid params");
+        let custom_params = Params::new(16 * 1024, 2, 4, 12)
+            .expect("valid set of TraverseV params");
 
         for params in [default_params, custom_params] {
             let original = challenge(Ulid::generate(), params);
@@ -355,7 +338,7 @@ mod tests {
         let challenge = challenge(id, params);
 
         assert_eq!(challenge.id(), id);
-        assert_eq!(challenge.start(), time_step());
+        assert_eq!(challenge.ttl(), TTL);
         assert_eq!(challenge.nonce(), &NONCE.to_vec());
         assert_eq!(challenge.params(), params);
     }
@@ -368,18 +351,11 @@ mod tests {
     }
 
     #[test]
-    fn challenge_from_uri_rejects_invalid_tv_params() {
+    fn challenge_from_uri_rejects_invalid_params() {
         let uri =
             parse_uri("challenge", &format!("{}&m_cost=1", challenge_query()));
         let result = Challenge::from_uri(&uri);
-        assert!(matches!(result.err(), Some(Error::TvParams(_))));
-    }
-
-    #[test]
-    fn challenge_from_uri_rejects_invalid_params() {
-        let uri = parse_uri("challenge", &format!("{}&x=0", challenge_query()));
-        let result = Challenge::from_uri(&uri);
-        assert!(matches!(result.err(), Some(Error::StepTooSmall)));
+        assert!(matches!(result.err(), Some(Error::Params(_))));
     }
 
     #[test]

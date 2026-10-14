@@ -32,7 +32,7 @@ pub(crate) trait Wire: Serialize {
 #[serde(deny_unknown_fields)]
 pub(crate) struct ChallengeWire {
     pub(crate) id: Ulid,
-    pub(crate) start: u64,
+    pub(crate) ttl: u64,
     #[serde(with = "b64url_vec")]
     pub(crate) nonce: Vec<u8>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -43,12 +43,6 @@ pub(crate) struct ChallengeWire {
     pub(crate) e_cost: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) n_cost: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) x: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) l: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) t0: Option<u64>,
 }
 
 impl Wire for ChallengeWire {}
@@ -169,7 +163,7 @@ mod tests {
     use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
     use num_traits::ToBytes;
 
-    use crate::{Counter, Params, model::Claims};
+    use crate::{Counter, model::Claims};
 
     use super::*;
 
@@ -180,11 +174,6 @@ mod tests {
 
     #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
     struct B64UrlArray(#[serde(with = "b64url_array")] [u8; 16]);
-
-    fn time_step() -> u64 {
-        let params = Params::default();
-        params.time_step(Some(TIME))
-    }
 
     fn claims() -> Claims {
         Claims::builder()
@@ -199,27 +188,24 @@ mod tests {
     #[test]
     fn challenge_path_and_query_layout() {
         let id = Ulid::generate();
-        let start = time_step();
+        let ttl = 300;
         let nonce = b"This is a challenge nonce".to_vec();
 
         let expected = format!(
-            "/?id={}&start={}&nonce={}",
+            "/?id={}&ttl={}&nonce={}",
             id,
-            start,
+            ttl,
             URL_SAFE_NO_PAD.encode(&nonce)
         );
 
         let wire = ChallengeWire {
             id,
-            start,
+            ttl,
             nonce,
             m_cost: None,
             t_cost: None,
             e_cost: None,
             n_cost: None,
-            x: None,
-            l: None,
-            t0: None,
         };
         let p_and_q = wire
             .path_and_query()
