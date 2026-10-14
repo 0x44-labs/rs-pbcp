@@ -1,13 +1,14 @@
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use http::Uri;
+use num_traits::{FromBytes, ToBytes};
 use serde_qs;
 use ulid::Ulid;
 #[cfg(feature = "zeroize")]
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::errors::CtppError;
-use crate::model::{ChallengeWire, Claims, ProofWire, Wire};
+use crate::model::{ChallengeWire, Claims, Counter, ProofWire, Wire};
 use crate::params::{Params, TvParams};
 
 const SCHEME: &str = "ctpp";
@@ -117,13 +118,13 @@ impl Challenge {
 pub struct Proof {
     id: Ulid,
     claims: Claims,
-    nonce: u128,
+    nonce: Counter,
 }
 
 impl Proof {
     /// Create a new [Proof] for the given session identifier, claims and
     /// nonce.
-    pub fn new(id: Ulid, claims: &Claims, nonce: u128) -> Self {
+    pub fn new(id: Ulid, claims: &Claims, nonce: Counter) -> Self {
         Self {
             id: id,
             claims: claims.clone(),
@@ -135,7 +136,7 @@ impl Proof {
     pub fn to_uri(&self) -> Result<Uri, CtppError> {
         let wire = ProofWire {
             id: self.id,
-            nonce: self.nonce,
+            nonce: self.nonce.to_le_bytes(),
             claims: self.claims.to_bytes()?,
         };
 
@@ -157,7 +158,7 @@ impl Proof {
         Ok(Proof {
             id: wire.id,
             claims: Claims::from_bytes(&wire.claims)?,
-            nonce: wire.nonce,
+            nonce: Counter::from_le_bytes(&wire.nonce),
         })
     }
 
@@ -198,8 +199,8 @@ impl Proof {
         let id =
             Ulid::from_string(first).map_err(|_| CtppError::ProofFormat)?;
         let claims = with_decoded(second, Claims::from_bytes)??;
-        let mut nonce = with_decoded(third, |b| {
-            <&[u8; 16]>::try_from(b).map(|a| u128::from_le_bytes(*a))
+        let mut nonce = with_decoded(third, |v| {
+            <&[u8; 16]>::try_from(v).map(|bytes| Counter::from_le_bytes(bytes))
         })?
         .map_err(|_| CtppError::ProofFormat)?;
 
@@ -222,7 +223,7 @@ impl Proof {
     }
 
     /// Returns the nonce.
-    pub const fn nonce(&self) -> u128 {
+    pub const fn nonce(&self) -> Counter {
         self.nonce
     }
 }
@@ -324,7 +325,7 @@ mod tests {
     fn proof() -> Proof {
         let id = Ulid::generate();
         let claims = claims();
-        let nonce = 0u128;
+        let nonce = Counter::default();
 
         Proof::new(id, &claims, nonce)
     }
@@ -428,7 +429,7 @@ mod tests {
     fn proof_accessors_return_their_own_field() {
         let id = Ulid::generate();
         let claims = claims();
-        let nonce = 0u128;
+        let nonce = Counter::default();
         let proof = Proof::new(id, &claims, nonce);
 
         assert_eq!(proof.id(), id);
