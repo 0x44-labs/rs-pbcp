@@ -1,10 +1,10 @@
-/// Errors returned by CTPP.
+/// Errors returned by PBCP.
 #[derive(Debug)]
-pub enum CtppError {
+pub enum PbcpError {
     /// Submitted proof is expired.
     Expired,
 
-    /// URI host invalid for CTPP.
+    /// URI host invalid for PBCP.
     InvalidHost,
 
     /// Message could not be JSON serialised/deserialised.
@@ -16,7 +16,7 @@ pub enum CtppError {
     /// Unable to construct path and query.
     PathAndQuery(http::uri::InvalidUri),
 
-    /// Proof string format invalid for CTPP.
+    /// Proof string format invalid for PBCP.
     ProofFormat,
 
     /// Could not serialise/deserialise querystring.
@@ -28,33 +28,33 @@ pub enum CtppError {
     /// Failed to build URI.
     UriBuilder(http::Error),
 
-    /// Parsed URI invalid for CTPP.
+    /// Parsed URI invalid for PBCP.
     UriParse,
 
     /// Proof submitted to wrong challenge.
     WrongChallenge,
 }
 
-impl std::fmt::Display for CtppError {
+impl std::fmt::Display for PbcpError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let msg = match self {
             Self::Expired => "submitted proof is expired",
-            Self::InvalidHost => "uri host invalid for ctpp",
+            Self::InvalidHost => "uri host invalid for pbcp",
             Self::Json(e) => return core::fmt::Display::fmt(e, f),
             Self::Params(e) => return core::fmt::Display::fmt(e, f),
             Self::PathAndQuery(e) => return core::fmt::Display::fmt(e, f),
-            Self::ProofFormat => "proof string format invalid for ctpp",
+            Self::ProofFormat => "proof string format invalid for pbcp",
             Self::QueryString(e) => return core::fmt::Display::fmt(e, f),
             Self::TooCostly => "challenge exceeded the configured costs",
             Self::UriBuilder(e) => return core::fmt::Display::fmt(e, f),
-            Self::UriParse => "parsed uri invalid for ctpp",
+            Self::UriParse => "parsed uri invalid for pbcp",
             Self::WrongChallenge => "proof submitted to wrong challenge",
         };
         f.write_str(msg)
     }
 }
 
-impl std::error::Error for CtppError {
+impl std::error::Error for PbcpError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Json(e) => Some(e),
@@ -67,31 +67,31 @@ impl std::error::Error for CtppError {
     }
 }
 
-impl From<serde_json::Error> for CtppError {
+impl From<serde_json::Error> for PbcpError {
     fn from(value: serde_json::Error) -> Self {
         Self::Json(value)
     }
 }
 
-impl From<traversev::TraverseVErr> for CtppError {
+impl From<traversev::TraverseVErr> for PbcpError {
     fn from(value: traversev::TraverseVErr) -> Self {
         Self::Params(value)
     }
 }
 
-impl From<http::uri::InvalidUri> for CtppError {
+impl From<http::uri::InvalidUri> for PbcpError {
     fn from(value: http::uri::InvalidUri) -> Self {
         Self::PathAndQuery(value)
     }
 }
 
-impl From<serde_qs::Error> for CtppError {
+impl From<serde_qs::Error> for PbcpError {
     fn from(value: serde_qs::Error) -> Self {
         Self::QueryString(value)
     }
 }
 
-impl From<http::Error> for CtppError {
+impl From<http::Error> for PbcpError {
     fn from(value: http::Error) -> Self {
         Self::UriBuilder(value)
     }
@@ -104,33 +104,33 @@ mod tests {
     use super::*;
 
     /// Expected [Display](core::fmt::Display) output.
-    fn expected_display(err: &CtppError) -> &'static str {
+    fn expected_display(err: &PbcpError) -> &'static str {
         match err {
-            CtppError::Expired => "submitted proof is expired",
-            CtppError::InvalidHost => "uri host invalid for ctpp",
-            CtppError::Json(e) => e.to_string().leak(),
-            CtppError::Params(e) => e.to_string().leak(),
-            CtppError::PathAndQuery(e) => e.to_string().leak(),
-            CtppError::ProofFormat => "proof string format invalid for ctpp",
-            CtppError::QueryString(e) => e.to_string().leak(),
-            CtppError::TooCostly => "challenge exceeded the configured costs",
-            CtppError::UriBuilder(e) => e.to_string().leak(),
-            CtppError::UriParse => "parsed uri invalid for ctpp",
-            CtppError::WrongChallenge => "proof submitted to wrong challenge",
+            PbcpError::Expired => "submitted proof is expired",
+            PbcpError::InvalidHost => "uri host invalid for pbcp",
+            PbcpError::Json(e) => e.to_string().leak(),
+            PbcpError::Params(e) => e.to_string().leak(),
+            PbcpError::PathAndQuery(e) => e.to_string().leak(),
+            PbcpError::ProofFormat => "proof string format invalid for pbcp",
+            PbcpError::QueryString(e) => e.to_string().leak(),
+            PbcpError::TooCostly => "challenge exceeded the configured costs",
+            PbcpError::UriBuilder(e) => e.to_string().leak(),
+            PbcpError::UriParse => "parsed uri invalid for pbcp",
+            PbcpError::WrongChallenge => "proof submitted to wrong challenge",
         }
     }
 
-    fn json() -> CtppError {
+    fn json() -> PbcpError {
         serde_json::from_str::<serde_json::Value>("{")
             .unwrap_err()
             .into()
     }
 
-    fn path_and_query() -> CtppError {
+    fn path_and_query() -> PbcpError {
         http::Uri::from_str("").unwrap_err().into()
     }
 
-    fn query_string() -> CtppError {
+    fn query_string() -> PbcpError {
         #[derive(Debug, serde::Deserialize)]
         struct Query {
             #[allow(dead_code)]
@@ -139,11 +139,11 @@ mod tests {
         serde_qs::from_str::<Query>("n=abc").unwrap_err().into()
     }
 
-    fn tv_params() -> CtppError {
+    fn tv_params() -> PbcpError {
         traversev::Params::new(0, 1, 1, 1).unwrap_err().into()
     }
 
-    fn uri_builder() -> CtppError {
+    fn uri_builder() -> PbcpError {
         http::uri::Builder::new()
             .scheme("not a scheme")
             .build()
@@ -151,19 +151,19 @@ mod tests {
             .into()
     }
 
-    fn all_variants() -> Vec<(CtppError, &'static str)> {
+    fn all_variants() -> Vec<(PbcpError, &'static str)> {
         vec![
-            (CtppError::Expired, "Expired"),
-            (CtppError::InvalidHost, "InvalidHost"),
+            (PbcpError::Expired, "Expired"),
+            (PbcpError::InvalidHost, "InvalidHost"),
             (json(), "Json"),
             (path_and_query(), "PathAndQuery"),
-            (CtppError::ProofFormat, "ProofFormat"),
-            (CtppError::TooCostly, "TooCostly"),
+            (PbcpError::ProofFormat, "ProofFormat"),
+            (PbcpError::TooCostly, "TooCostly"),
             (query_string(), "QueryString"),
             (tv_params(), "TvParams"),
             (uri_builder(), "UriBuilder"),
-            (CtppError::UriParse, "UriParse"),
-            (CtppError::WrongChallenge, "WrongChallenge"),
+            (PbcpError::UriParse, "UriParse"),
+            (PbcpError::WrongChallenge, "WrongChallenge"),
         ]
     }
 
@@ -191,7 +191,7 @@ mod tests {
     #[test]
     fn conforms_to_std_error() {
         fn assert_bounds<T: Send + Sync + 'static>() {}
-        assert_bounds::<CtppError>();
+        assert_bounds::<PbcpError>();
 
         for (err, name) in all_variants() {
             let expected = expected_display(&err);
@@ -218,9 +218,9 @@ mod tests {
 
         // Converts into a boxed error via `?`
         fn fallible() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-            Err(CtppError::InvalidHost)?
+            Err(PbcpError::InvalidHost)?
         }
         let boxed = fallible().unwrap_err();
-        assert_eq!(boxed.to_string(), "uri host invalid for ctpp");
+        assert_eq!(boxed.to_string(), "uri host invalid for pbcp");
     }
 }

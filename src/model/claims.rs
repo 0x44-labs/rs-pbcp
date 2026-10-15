@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 #[cfg(feature = "zeroize")]
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-use crate::errors::CtppError;
+use crate::errors::PbcpError;
 
 /// A JWT-style `Claims` set, representing a JSON object whose members are the
 /// claims.
@@ -22,22 +22,22 @@ impl Claims {
     }
 
     /// Parse [Claims] from a JSON string.
-    pub fn from_json(json: &str) -> Result<Self, CtppError> {
+    pub fn from_json(json: &str) -> Result<Self, PbcpError> {
         Ok(serde_json::from_str(json)?)
     }
 
     /// Serialise these [Claims] to a JSON string.
-    pub fn to_json(&self) -> Result<String, CtppError> {
+    pub fn to_json(&self) -> Result<String, PbcpError> {
         Ok(serde_json::to_string(self)?)
     }
 
     /// Parse [Claims] from JSON-encoded bytes.
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, CtppError> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, PbcpError> {
         Ok(serde_json::from_slice(bytes)?)
     }
 
     /// Serialise these [Claims] to JSON bytes in canonical form.
-    pub fn to_bytes(&self) -> Result<Vec<u8>, CtppError> {
+    pub fn to_bytes(&self) -> Result<Vec<u8>, PbcpError> {
         Ok(serde_json_canonicalizer::to_vec(self)?)
     }
 

@@ -5,10 +5,10 @@ use ulid::Ulid;
 #[cfg(feature = "zeroize")]
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-use crate::errors::CtppError;
+use crate::errors::PbcpError;
 
 pub(crate) trait Wire: Serialize {
-    fn path_and_query(&self) -> Result<PathAndQuery, CtppError>
+    fn path_and_query(&self) -> Result<PathAndQuery, PbcpError>
     where
         Self: Sized,
     {

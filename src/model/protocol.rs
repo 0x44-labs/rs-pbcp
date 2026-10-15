@@ -8,10 +8,10 @@ use ulid::Ulid;
 #[cfg(feature = "zeroize")]
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-use crate::errors::CtppError;
+use crate::errors::PbcpError;
 use crate::model::{ChallengeWire, Claims, Counter, ProofWire, Wire};
 
-const SCHEME: &str = "ctpp";
+const SCHEME: &str = "pbcp";
 
 /// A `Challenge` represents a challenge identifier, time of expiration (in
 /// seconds), nonce value, and TraverseV parameters.
@@ -40,9 +40,9 @@ impl Challenge {
         }
     }
 
-    /// Serialise this [Challenge] to a `ctpp://challenge` URI, omitting
+    /// Serialise this [Challenge] to a `pbcp://challenge` URI, omitting
     /// parameters that have their default values.
-    pub fn to_uri(&self) -> Result<Uri, CtppError> {
+    pub fn to_uri(&self) -> Result<Uri, PbcpError> {
         let wire = ChallengeWire {
             id: self.id,
             expires_at: self.expires_at,
@@ -63,9 +63,9 @@ impl Challenge {
         Ok(uri)
     }
 
-    /// Parse a [Challenge] from a `ctpp://challenge` URI, using defaults for
+    /// Parse a [Challenge] from a `pbcp://challenge` URI, using defaults for
     /// omitted parameters.
-    pub fn from_uri(uri: &Uri) -> Result<Self, CtppError> {
+    pub fn from_uri(uri: &Uri) -> Result<Self, PbcpError> {
         let query = host_query(uri, "challenge")?;
         let wire: ChallengeWire = serde_qs::from_str(query)?;
 
@@ -75,7 +75,7 @@ impl Challenge {
             wire.e_cost.unwrap_or(traversev::Params::DEFAULT_E),
             wire.n_cost.unwrap_or(traversev::Params::DEFAULT_N),
         )
-        .map_err(|e| CtppError::Params(e))?;
+        .map_err(|e| PbcpError::Params(e))?;
 
         Ok(Challenge {
             id: wire.id,
@@ -126,8 +126,8 @@ impl Proof {
         }
     }
 
-    /// Serialise this [Proof] to a `ctpp://proof` URI.
-    pub fn to_uri(&self) -> Result<Uri, CtppError> {
+    /// Serialise this [Proof] to a `pbcp://proof` URI.
+    pub fn to_uri(&self) -> Result<Uri, PbcpError> {
         let wire = ProofWire {
             id: self.id,
             nonce: self.nonce.to_le_bytes(),
@@ -144,8 +144,8 @@ impl Proof {
         Ok(uri)
     }
 
-    /// Parse a [Proof] from a `ctpp://proof` URI.
-    pub fn from_uri(uri: &Uri) -> Result<Self, CtppError> {
+    /// Parse a [Proof] from a `pbcp://proof` URI.
+    pub fn from_uri(uri: &Uri) -> Result<Self, PbcpError> {
         let query = host_query(uri, "proof")?;
         let wire: ProofWire = serde_qs::from_str(query)?;
 
@@ -158,7 +158,7 @@ impl Proof {
 
     /// Serialise this [Proof] to a string of the form `id.claims.nonce`,
     /// with the claims and nonce encoded as unpadded URL-safe base64.
-    pub fn to_string(&self) -> Result<String, CtppError> {
+    pub fn to_string(&self) -> Result<String, PbcpError> {
         let id = self.id.to_string();
 
         let mut claims_bytes = self.claims.to_bytes()?;
@@ -182,21 +182,21 @@ impl Proof {
 
     /// Parse a [Proof] from a string of the form `id.claims.nonce`, with the
     /// claims and nonce encoded as unpadded URL-safe base64.
-    pub fn from_string(s: &str) -> Result<Self, CtppError> {
+    pub fn from_string(s: &str) -> Result<Self, PbcpError> {
         let mut parts = s.split(".");
         let (Some(first), Some(second), Some(third), None) =
             (parts.next(), parts.next(), parts.next(), parts.next())
         else {
-            return Err(CtppError::ProofFormat);
+            return Err(PbcpError::ProofFormat);
         };
 
         let id =
-            Ulid::from_string(first).map_err(|_| CtppError::ProofFormat)?;
+            Ulid::from_string(first).map_err(|_| PbcpError::ProofFormat)?;
         let claims = with_decoded(second, Claims::from_bytes)??;
         let mut nonce = with_decoded(third, |v| {
             <&[u8; 16]>::try_from(v).map(|bytes| Counter::from_le_bytes(bytes))
         })?
-        .map_err(|_| CtppError::ProofFormat)?;
+        .map_err(|_| PbcpError::ProofFormat)?;
 
         let proof = Self { id, claims, nonce };
 
@@ -244,26 +244,26 @@ fn non_default<T: PartialEq>(value: T, default: T) -> Option<T> {
     (value != default).then_some(value)
 }
 
-fn host_query<'a>(uri: &'a Uri, host: &str) -> Result<&'a str, CtppError> {
+fn host_query<'a>(uri: &'a Uri, host: &str) -> Result<&'a str, PbcpError> {
     if uri.scheme_str() != Some(SCHEME) {
-        return Err(CtppError::UriParse);
+        return Err(PbcpError::UriParse);
     }
     if uri.host() != Some(host) {
-        return Err(CtppError::InvalidHost);
+        return Err(PbcpError::InvalidHost);
     }
     match uri.query() {
         Some(q) => Ok(q),
-        None => return Err(CtppError::UriParse),
+        None => return Err(PbcpError::UriParse),
     }
 }
 
 fn with_decoded<T>(
     s: &str,
     f: impl FnOnce(&[u8]) -> T,
-) -> Result<T, CtppError> {
+) -> Result<T, PbcpError> {
     let mut bytes = URL_SAFE_NO_PAD
         .decode(s)
-        .map_err(|_| CtppError::ProofFormat)?;
+        .map_err(|_| PbcpError::ProofFormat)?;
     let out = f(&bytes);
 
     #[cfg(feature = "zeroize")]
@@ -276,7 +276,7 @@ fn with_decoded<T>(
 mod tests {
     use super::*;
 
-    type Error = CtppError;
+    type Error = PbcpError;
 
     const TIME: u64 = 1786558105;
     const TTL: u64 = 300;
@@ -296,7 +296,7 @@ mod tests {
     }
 
     fn parse_uri(authority: &str, query: &str) -> Uri {
-        format!("ctpp://{authority}/?{query}")
+        format!("pbcp://{authority}/?{query}")
             .parse()
             .expect("valid URI")
     }
@@ -435,7 +435,7 @@ mod tests {
 
     #[test]
     fn host_query_rejects_missing_query() {
-        let uri: Uri = "ctpp://challenge/".parse().expect("valid URI");
+        let uri: Uri = "pbcp://challenge/".parse().expect("valid URI");
         let result = host_query(&uri, "challenge");
         assert!(matches!(result.err(), Some(Error::UriParse)));
     }
