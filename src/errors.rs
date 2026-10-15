@@ -126,6 +126,10 @@ mod tests {
             .into()
     }
 
+    fn params() -> PbcpError {
+        traversev::Params::new(0, 1, 1, 1).unwrap_err().into()
+    }
+
     fn path_and_query() -> PbcpError {
         http::Uri::from_str("").unwrap_err().into()
     }
@@ -137,10 +141,6 @@ mod tests {
             timestamp: u32,
         }
         serde_qs::from_str::<Query>("n=abc").unwrap_err().into()
-    }
-
-    fn tv_params() -> PbcpError {
-        traversev::Params::new(0, 1, 1, 1).unwrap_err().into()
     }
 
     fn uri_builder() -> PbcpError {
@@ -156,11 +156,11 @@ mod tests {
             (PbcpError::Expired, "Expired"),
             (PbcpError::InvalidHost, "InvalidHost"),
             (json(), "Json"),
+            (params(), "Params"),
             (path_and_query(), "PathAndQuery"),
             (PbcpError::ProofFormat, "ProofFormat"),
             (PbcpError::TooCostly, "TooCostly"),
             (query_string(), "QueryString"),
-            (tv_params(), "TvParams"),
             (uri_builder(), "UriBuilder"),
             (PbcpError::UriParse, "UriParse"),
             (PbcpError::WrongChallenge, "WrongChallenge"),
@@ -198,9 +198,9 @@ mod tests {
             let wrapped = matches!(
                 name,
                 "Json"
+                    | "Params"
                     | "PathAndQuery"
                     | "QueryString"
-                    | "TvParams"
                     | "UriBuilder"
             );
             let dyn_err: &dyn std::error::Error = &err;

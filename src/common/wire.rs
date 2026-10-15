@@ -1,9 +1,8 @@
 use http::uri::PathAndQuery;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::str::FromStr;
-use ulid::Ulid;
 #[cfg(feature = "zeroize")]
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::Zeroize;
 
 use crate::errors::PbcpError;
 
@@ -27,64 +26,13 @@ pub(crate) trait Wire: Serialize {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize)]
-#[cfg_attr(test, derive(Debug, PartialEq, Eq))]
-#[serde(deny_unknown_fields)]
-pub(crate) struct ChallengeWire {
-    pub(crate) id: Ulid,
-    pub(crate) expires_at: u64,
-    #[serde(with = "b64url_vec")]
-    pub(crate) nonce: Vec<u8>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) m_cost: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) t_cost: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) e_cost: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) n_cost: Option<u32>,
-}
-
-impl Wire for ChallengeWire {}
-
-#[derive(Clone, Serialize, Deserialize)]
-#[cfg_attr(test, derive(Debug, PartialEq, Eq))]
-#[serde(deny_unknown_fields)]
-pub(crate) struct ProofWire {
-    pub(crate) id: Ulid,
-    #[serde(with = "b64url_vec")]
-    pub(crate) claims: Vec<u8>,
-    #[serde(with = "b64url_array")]
-    pub(crate) nonce: [u8; 16],
-}
-
-impl Wire for ProofWire {}
-
-#[cfg(feature = "zeroize")]
-impl Zeroize for ProofWire {
-    fn zeroize(&mut self) {
-        self.claims.zeroize();
-        self.nonce.zeroize();
-    }
-}
-
-#[cfg(feature = "zeroize")]
-impl Drop for ProofWire {
-    fn drop(&mut self) {
-        self.zeroize();
-    }
-}
-
-#[cfg(feature = "zeroize")]
-impl ZeroizeOnDrop for ProofWire {}
-
-mod b64url_vec {
+pub(crate) mod b64url_vec {
     use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
     use serde::{Deserialize, Deserializer, Serializer};
     #[cfg(feature = "zeroize")]
     use zeroize::Zeroize;
 
-    pub(super) fn serialize<S: Serializer>(
+    pub(crate) fn serialize<S: Serializer>(
         v: &Vec<u8>,
         s: S,
     ) -> Result<S::Ok, S::Error> {
@@ -97,7 +45,7 @@ mod b64url_vec {
         serialized
     }
 
-    pub(super) fn deserialize<'de, D: Deserializer<'de>>(
+    pub(crate) fn deserialize<'de, D: Deserializer<'de>>(
         d: D,
     ) -> Result<Vec<u8>, D::Error> {
         let mut input = String::deserialize(d)?;
@@ -112,13 +60,13 @@ mod b64url_vec {
     }
 }
 
-mod b64url_array {
+pub(crate) mod b64url_array {
     use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
     use serde::{Deserialize, Deserializer, Serializer};
     #[cfg(feature = "zeroize")]
     use zeroize::Zeroize;
 
-    pub(super) fn serialize<S: Serializer>(
+    pub(crate) fn serialize<S: Serializer>(
         v: &[u8; 16],
         s: S,
     ) -> Result<S::Ok, S::Error> {
@@ -131,7 +79,7 @@ mod b64url_array {
         serialized
     }
 
-    pub(super) fn deserialize<'de, D: Deserializer<'de>>(
+    pub(crate) fn deserialize<'de, D: Deserializer<'de>>(
         d: D,
     ) -> Result<[u8; 16], D::Error> {
         let mut input = String::deserialize(d)?;
@@ -160,14 +108,12 @@ mod b64url_array {
 
 #[cfg(test)]
 mod tests {
-    use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
     use num_traits::ToBytes;
+    use serde::Deserialize;
 
-    use crate::{Counter, model::Claims};
+    use crate::common::{Claims, Counter};
 
     use super::*;
-
-    const TIME: u64 = 1786558105;
 
     #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
     struct B64UrlVec(#[serde(with = "b64url_vec")] Vec<u8>);
@@ -183,58 +129,6 @@ mod tests {
             .claim("iat", 1786554930)
             .claim("exp", 1786561137)
             .build()
-    }
-
-    #[test]
-    fn challenge_path_and_query_layout() {
-        let id = Ulid::generate();
-        let expires_at = TIME + 300;
-        let nonce = b"This is a challenge nonce".to_vec();
-
-        let expected = format!(
-            "/?id={}&expires_at={}&nonce={}",
-            id,
-            expires_at,
-            URL_SAFE_NO_PAD.encode(&nonce)
-        );
-
-        let wire = ChallengeWire {
-            id,
-            expires_at,
-            nonce,
-            m_cost: None,
-            t_cost: None,
-            e_cost: None,
-            n_cost: None,
-        };
-        let p_and_q = wire
-            .path_and_query()
-            .expect("valid wire builds path and query");
-
-        assert_eq!(p_and_q.as_str(), expected);
-    }
-
-    #[test]
-    fn proof_path_and_query_layout() {
-        let id = Ulid::generate();
-        let claims = claims()
-            .to_bytes()
-            .expect("valid Claims serialise to canonical JSON bytes");
-        let nonce = Counter::default().to_le_bytes();
-
-        let expected = format!(
-            "/?id={}&claims={}&nonce={}",
-            id,
-            URL_SAFE_NO_PAD.encode(&claims),
-            URL_SAFE_NO_PAD.encode(&nonce)
-        );
-
-        let wire = ProofWire { id, claims, nonce };
-        let p_and_q = wire
-            .path_and_query()
-            .expect("valid wire builds path and query");
-
-        assert_eq!(p_and_q.as_str(), expected);
     }
 
     #[test]
