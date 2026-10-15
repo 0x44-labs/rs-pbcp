@@ -1,10 +1,9 @@
 use num_traits::{FromBytes, ToBytes};
-use std::{
-    ops::AddAssign,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::ops::AddAssign;
 #[cfg(feature = "zeroize")]
 use zeroize::Zeroize;
+
+use crate::common::unix_now;
 
 /// A `u128` value packing a count in the low 64 bits with a Unix timestamp
 /// (in seconds) in the high 64 bits.
@@ -15,7 +14,7 @@ impl Counter {
     /// Create a new `Counter` holding the given `u64` count in the low 64 bits
     /// and the current Unix timestamp (in seconds) in the high 64 bits.
     pub fn new(count: u64) -> Self {
-        let time = Self::now();
+        let time = unix_now();
 
         Self(Self::pack(count, time))
     }
@@ -30,13 +29,6 @@ impl Counter {
     pub fn time(&self) -> u64 {
         let (_, time) = self.unpack();
         time
-    }
-
-    fn now() -> u64 {
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("")
-            .as_secs()
     }
 
     fn pack(count: u64, time: u64) -> u128 {
@@ -117,7 +109,7 @@ impl AddAssign<u64> for Counter {
             count += rhs;
             self.0 = Self::pack(count, time);
         } else {
-            let time = Self::now();
+            let time = unix_now();
             let count = 0u64;
             self.0 = Self::pack(count, time);
         }
@@ -149,13 +141,6 @@ mod tests {
 
     const TIME: u64 = 1786558105;
 
-    fn now() -> u64 {
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("")
-            .as_secs()
-    }
-
     fn pack_values(count: u64, time: u64) -> Counter {
         Counter::from((u128::from(time) << 64) | u128::from(count))
     }
@@ -168,35 +153,35 @@ mod tests {
     #[test]
     fn new_packs_count_low_time_high() {
         for count in [0, 1, u64::MAX] {
-            let before = now();
+            let before = unix_now();
             let counter = Counter::new(count);
-            let after = now();
+            let after = unix_now();
 
             let unpacked = unpack_counter(counter);
             assert_eq!(unpacked.0, count);
-            assert!((before..=after).contains(&unpacked.1))
+            assert!((before..=after).contains(&unpacked.1));
         }
     }
 
     #[test]
     fn accessors_return_their_own_field() {
-        let before = now();
+        let before = unix_now();
         let counter = Counter::default();
-        let after = now();
+        let after = unix_now();
 
         assert_eq!(counter.count(), 0);
-        assert!((before..=after).contains(&counter.time()))
+        assert!((before..=after).contains(&counter.time()));
     }
 
     #[test]
     fn default_zero_count_current_time() {
-        let before = now();
+        let before = unix_now();
         let counter = Counter::default();
-        let after = now();
+        let after = unix_now();
 
         let unpacked = unpack_counter(counter);
         assert_eq!(unpacked.0, 0);
-        assert!((before..=after).contains(&unpacked.1))
+        assert!((before..=after).contains(&unpacked.1));
     }
 
     #[test]
@@ -287,13 +272,13 @@ mod tests {
     fn add_assign_overflow_refreshes_time() {
         for (count, rhs) in [(1, u64::MAX), (u64::MAX, 1)] {
             let mut counter = pack_values(count, TIME);
-            let before = now();
+            let before = unix_now();
             counter += rhs;
-            let after = now();
+            let after = unix_now();
 
             let unpacked = unpack_counter(counter);
             assert_eq!(unpacked.0, 0);
-            assert!((before..=after).contains(&unpacked.1))
+            assert!((before..=after).contains(&unpacked.1));
         }
     }
 
