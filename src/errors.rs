@@ -10,6 +10,9 @@ pub enum PbcpError {
     /// Message could not be JSON serialised/deserialised.
     Json(serde_json::Error),
 
+    /// Proof nonce expects 16 bytes.
+    NonceLen,
+
     /// Invalid parameters for TraverseV.
     Params(traversev::TraverseVErr),
 
@@ -21,6 +24,12 @@ pub enum PbcpError {
 
     /// Could not serialise/deserialise querystring.
     QueryString(serde_qs::Error),
+
+    /// Proof already submitted for this challenge.
+    Replayed,
+
+    /// Authentication tag expects 32 bytes.
+    TagLen,
 
     /// Challenge exceeded the configured costs.
     TooCostly,
@@ -41,10 +50,13 @@ impl std::fmt::Display for PbcpError {
             Self::Expired => "submitted proof is expired",
             Self::InvalidHost => "uri host invalid for pbcp",
             Self::Json(e) => return core::fmt::Display::fmt(e, f),
+            Self::NonceLen => "proof nonce expects 16 bytes",
             Self::Params(e) => return core::fmt::Display::fmt(e, f),
             Self::PathAndQuery(e) => return core::fmt::Display::fmt(e, f),
             Self::ProofFormat => "proof string format invalid for pbcp",
             Self::QueryString(e) => return core::fmt::Display::fmt(e, f),
+            Self::Replayed => "proof already submitted for this challenge",
+            Self::TagLen => "authentication tag expects 32 bytes",
             Self::TooCostly => "challenge exceeded the configured costs",
             Self::UriBuilder(e) => return core::fmt::Display::fmt(e, f),
             Self::UriParse => "parsed uri invalid for pbcp",
@@ -109,10 +121,13 @@ mod tests {
             PbcpError::Expired => "submitted proof is expired",
             PbcpError::InvalidHost => "uri host invalid for pbcp",
             PbcpError::Json(e) => e.to_string().leak(),
+            PbcpError::NonceLen => "proof nonce expects 16 bytes",
             PbcpError::Params(e) => e.to_string().leak(),
             PbcpError::PathAndQuery(e) => e.to_string().leak(),
             PbcpError::ProofFormat => "proof string format invalid for pbcp",
             PbcpError::QueryString(e) => e.to_string().leak(),
+            PbcpError::Replayed => "proof already submitted for this challenge",
+            PbcpError::TagLen => "authentication tag expects 32 bytes",
             PbcpError::TooCostly => "challenge exceeded the configured costs",
             PbcpError::UriBuilder(e) => e.to_string().leak(),
             PbcpError::UriParse => "parsed uri invalid for pbcp",
@@ -156,11 +171,14 @@ mod tests {
             (PbcpError::Expired, "Expired"),
             (PbcpError::InvalidHost, "InvalidHost"),
             (json(), "Json"),
+            (PbcpError::NonceLen, "NonceLen"),
             (params(), "Params"),
             (path_and_query(), "PathAndQuery"),
             (PbcpError::ProofFormat, "ProofFormat"),
-            (PbcpError::TooCostly, "TooCostly"),
             (query_string(), "QueryString"),
+            (PbcpError::Replayed, "Replayed"),
+            (PbcpError::TagLen, "TagLen"),
+            (PbcpError::TooCostly, "TooCostly"),
             (uri_builder(), "UriBuilder"),
             (PbcpError::UriParse, "UriParse"),
             (PbcpError::WrongChallenge, "WrongChallenge"),

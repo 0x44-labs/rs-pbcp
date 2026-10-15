@@ -60,66 +60,16 @@ pub(crate) mod b64url_vec {
     }
 }
 
-pub(crate) mod b64url_array {
-    use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
-    use serde::{Deserialize, Deserializer, Serializer};
-    #[cfg(feature = "zeroize")]
-    use zeroize::Zeroize;
-
-    pub(crate) fn serialize<S: Serializer>(
-        v: &[u8; 16],
-        s: S,
-    ) -> Result<S::Ok, S::Error> {
-        let mut encoded = URL_SAFE_NO_PAD.encode(v);
-        let serialized = s.serialize_str(&encoded);
-
-        #[cfg(feature = "zeroize")]
-        encoded.zeroize();
-
-        serialized
-    }
-
-    pub(crate) fn deserialize<'de, D: Deserializer<'de>>(
-        d: D,
-    ) -> Result<[u8; 16], D::Error> {
-        let mut input = String::deserialize(d)?;
-        let decoded = URL_SAFE_NO_PAD.decode(&input);
-
-        #[cfg(feature = "zeroize")]
-        input.zeroize();
-
-        let mut bytes = decoded.map_err(|_| {
-            <D::Error as serde::de::Error>::custom("invalid base64")
-        })?;
-        let deserialized = <[u8; 16]>::try_from(bytes.as_slice());
-
-        let deserialized = deserialized.map_err(|_| {
-            <D::Error as serde::de::Error>::custom(
-                "value must decode to 16 bytes",
-            )
-        })?;
-
-        #[cfg(feature = "zeroize")]
-        bytes.zeroize();
-
-        Ok(deserialized)
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use num_traits::ToBytes;
     use serde::Deserialize;
 
-    use crate::common::{Claims, Counter};
+    use crate::common::Claims;
 
     use super::*;
 
     #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
     struct B64UrlVec(#[serde(with = "b64url_vec")] Vec<u8>);
-
-    #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
-    struct B64UrlArray(#[serde(with = "b64url_array")] [u8; 16]);
 
     fn claims() -> Claims {
         Claims::builder()
@@ -146,24 +96,6 @@ mod tests {
     #[test]
     fn b64url_vec_rejects_invalid() {
         let err = serde_json::from_str::<B64UrlVec>("\"!\"").unwrap_err();
-        assert!(err.to_string().contains("invalid base64"));
-    }
-
-    #[test]
-    fn b64url_array_round_trip() {
-        let nonce = Counter::default();
-        let original = B64UrlArray(nonce.to_le_bytes());
-        let json =
-            serde_json::to_string(&original).expect("valid array serialises");
-
-        let reconstructed: B64UrlArray = serde_json::from_str(&json)
-            .expect("valid base64url string deserialises");
-        assert_eq!(original, reconstructed);
-    }
-
-    #[test]
-    fn b64url_array_rejects_invalid() {
-        let err = serde_json::from_str::<B64UrlArray>("\"!\"").unwrap_err();
         assert!(err.to_string().contains("invalid base64"));
     }
 }

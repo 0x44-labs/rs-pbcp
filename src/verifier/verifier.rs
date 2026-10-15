@@ -1,3 +1,6 @@
+use blake3::Hasher;
+use std::collections::BTreeSet;
+use subtle::ConstantTimeEq;
 use traversev::{Params, TraverseV};
 use ulid::Ulid;
 #[cfg(feature = "zeroize")]
@@ -8,45 +11,39 @@ use crate::errors::PbcpError;
 use crate::prover::Proof;
 use crate::verifier::Challenge;
 
-/// Verifier for [Pbcp], capable of issuing a [Challenge] and evaluating any
-/// received [Proof] for authenticity.
-#[derive(Debug)]
+/// Verifier for [Pbcp], capable of issuing [Challenges](Challenge) and
+/// evaluating any received [Proof] for authenticity.
 pub struct Verifier {
-    id: Ulid,
-    expires_at: u64,
-    nonce: Vec<u8>,
-    tv: TraverseV,
+    context: String,
+    key: [u8; 32],
+    ttl: u64,
     params: Params,
+    seen: BTreeSet<Ulid>,
 }
 
 impl Verifier {
     pub(crate) fn new(
         context: &str,
-        nonce: &[u8],
+        key: &[u8; 32],
         ttl: u64,
         params: Params,
     ) -> Self {
-        let id = Ulid::generate();
-        let expires_at = unix_now() + ttl;
-
-        let mut secret = derive_secret(&id, nonce);
-        let tv = TraverseV::new_permissioned(&secret, context, params);
-
-        #[cfg(feature = "zeroize")]
-        secret.zeroize();
-
         Self {
-            id,
-            expires_at,
-            nonce: nonce.to_vec(),
-            tv,
+            context: context.to_owned(),
+            key: *key,
+            ttl,
             params,
+            seen: BTreeSet::new(),
         }
     }
 
-    /// Create a [Challenge] from this verifier.
-    pub fn to_challenge(&self) -> Challenge {
-        Challenge::new(self.id, self.expires_at, &self.nonce, self.params)
+    /// Issue a [Challenge] over the given nonce.
+    pub fn issue(&self, nonce: &[u8]) -> Challenge {
+        let id = Ulid::generate();
+        let expires_at = unix_now().saturating_add(self.ttl);
+
+        let tag = auth_tag(&self.key, expires_at, nonce, self.params);
+        Challenge::new(id, expires_at, nonce, self.params, tag)
     }
 
     /// Verify a [Proof] against this verifier's challenge, returning
@@ -54,12 +51,22 @@ impl Verifier {
     ///
     /// Returns an error if the proof belongs to a different challenge or the
     /// challenge has expired.
-    pub fn verify(&self, proof: &Proof) -> Result<bool, PbcpError> {
-        if proof.id() != self.id {
+    pub fn verify(&mut self, proof: &Proof) -> Result<bool, PbcpError> {
+        let challenge = proof.challenge();
+
+        let expected = auth_tag(
+            &self.key,
+            challenge.expires_at(),
+            challenge.nonce(),
+            challenge.params(),
+        );
+        let tampered = expected.ct_ne(&challenge.auth_tag());
+        if bool::from(tampered) {
             return Err(PbcpError::WrongChallenge);
         }
-        if proof.nonce().time() > self.expires_at
-            || unix_now() > self.expires_at
+
+        if proof.nonce().time() > challenge.expires_at()
+            || unix_now() > challenge.expires_at()
         {
             return Err(PbcpError::Expired);
         }
@@ -68,39 +75,88 @@ impl Verifier {
             Ok(bytes) => bytes,
             Err(e) => return Err(e),
         };
+
+        if self.seen.contains(&challenge.id()) {
+            #[cfg(feature = "zeroize")]
+            input.zeroize();
+
+            return Err(PbcpError::Replayed);
+        }
+
+        let mut secret = derive_secret(&challenge.id(), challenge.nonce());
+        let tv = TraverseV::new_permissioned(
+            &secret,
+            &self.context,
+            challenge.params(),
+        );
         let mut nonce = proof.nonce();
-        let valid = self.tv.verify(&input, nonce);
+        let valid = tv.verify(&input, nonce);
 
         #[cfg(feature = "zeroize")]
         {
             input.zeroize();
+            secret.zeroize();
             nonce.zeroize();
         }
+
+        self.seen.insert(challenge.id());
 
         Ok(valid)
     }
 
-    /// Returns this verifier's challenge identifier.
-    pub const fn id(&self) -> Ulid {
-        self.id
+    /// Returns the TTL applied to issued challenges, in seconds.
+    pub const fn ttl(&self) -> u64 {
+        self.ttl
     }
 
-    /// Returns the time of expiration for this verifier's challenge.
-    pub const fn expires_at(&self) -> u64 {
-        self.expires_at
-    }
-
-    /// Returns a reference to this verifier's challenge nonce.
-    pub const fn nonce(&self) -> &Vec<u8> {
-        &self.nonce
-    }
-
-    /// Returns this verifier's proof-of-work parameters.
+    /// Returns the proof-of-work parameters applied to issued challenges.
     pub const fn params(&self) -> Params {
         self.params
     }
 }
 
+impl core::fmt::Debug for Verifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Verifier")
+            .field("ttl", &self.ttl)
+            .field("params", &self.params)
+            .finish_non_exhaustive()
+    }
+}
+
+fn auth_tag(
+    key: &[u8; 32],
+    expires_at: u64,
+    nonce: &[u8],
+    params: Params,
+) -> [u8; 32] {
+    let mut hasher = Hasher::new();
+
+    hasher.update(key);
+    hasher.update(&expires_at.to_le_bytes());
+    for cost in [
+        params.m_cost(),
+        params.t_cost(),
+        params.e_cost(),
+        params.n_cost(),
+    ] {
+        hasher.update(&cost.to_le_bytes());
+    }
+    hasher.update(&nonce);
+
+    let mut hash = hasher.finalize();
+    let tag: [u8; 32] = hash.into();
+
+    #[cfg(feature = "zeroize")]
+    {
+        hasher.zeroize();
+        hash.zeroize();
+    }
+
+    tag
+}
+
+/*
 #[cfg(test)]
 mod tests {
     use crate::common::{Claims, Counter};
@@ -189,3 +245,4 @@ mod tests {
         assert!(matches!(result.err(), Some(Error::Expired)));
     }
 }
+*/

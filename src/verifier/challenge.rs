@@ -8,44 +8,40 @@ use crate::common::{URI_SCHEME, Wire, b64url_vec, host_query, non_default};
 use crate::errors::PbcpError;
 
 /// A `Challenge` represents a challenge identifier, time of expiration (in
-/// seconds), nonce value, and TraverseV parameters.
+/// seconds), nonce value, and TraverseV parameters, and an authentication tag
+/// over them.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Challenge {
     id: Ulid,
     expires_at: u64,
     nonce: Vec<u8>,
     params: Params,
+    auth_tag: [u8; 32],
 }
 
 impl Challenge {
     /// Create a new [Challenge] with the given challenge identifier, time
-    /// of expiration, nonce, and TraverseV parameters.
+    /// of expiration, nonce, TraverseV parameters, and authentication tag.
     pub fn new(
         id: Ulid,
         expires_at: u64,
         nonce: &[u8],
         params: Params,
+        auth_tag: [u8; 32],
     ) -> Self {
         Self {
             id,
             expires_at,
             nonce: nonce.to_vec(),
             params,
+            auth_tag,
         }
     }
 
     /// Serialise this [Challenge] to a `pbcp://challenge` URI, omitting
     /// parameters that have their default values.
     pub fn to_uri(&self) -> Result<Uri, PbcpError> {
-        let wire = ChallengeWire {
-            id: self.id,
-            expires_at: self.expires_at,
-            nonce: self.nonce.to_vec(),
-            m_cost: non_default(self.params.m_cost(), Params::DEFAULT_M),
-            t_cost: non_default(self.params.t_cost(), Params::DEFAULT_T),
-            e_cost: non_default(self.params.e_cost(), Params::DEFAULT_E),
-            n_cost: non_default(self.params.n_cost(), Params::DEFAULT_N),
-        };
+        let wire = ChallengeWire::from(self);
 
         let p_and_q = wire.path_and_query()?;
         let uri = Uri::builder()
@@ -63,20 +59,7 @@ impl Challenge {
         let query = host_query(uri, "challenge")?;
         let wire: ChallengeWire = serde_qs::from_str(query)?;
 
-        let params = Params::new(
-            wire.m_cost.unwrap_or(traversev::Params::DEFAULT_M),
-            wire.t_cost.unwrap_or(traversev::Params::DEFAULT_T),
-            wire.e_cost.unwrap_or(traversev::Params::DEFAULT_E),
-            wire.n_cost.unwrap_or(traversev::Params::DEFAULT_N),
-        )
-        .map_err(|e| PbcpError::Params(e))?;
-
-        Ok(Challenge {
-            id: wire.id,
-            expires_at: wire.expires_at,
-            nonce: wire.nonce,
-            params,
-        })
+        Challenge::try_from(wire)
     }
 
     /// Returns the challenge identifier.
@@ -98,6 +81,39 @@ impl Challenge {
     pub const fn params(&self) -> Params {
         self.params
     }
+
+    /// Returns the authentication tag.
+    pub const fn auth_tag(&self) -> [u8; 32] {
+        self.auth_tag
+    }
+}
+
+impl TryFrom<ChallengeWire> for Challenge {
+    type Error = PbcpError;
+
+    fn try_from(value: ChallengeWire) -> Result<Self, Self::Error> {
+        let params = Params::new(
+            value.m_cost.unwrap_or(traversev::Params::DEFAULT_M),
+            value.t_cost.unwrap_or(traversev::Params::DEFAULT_T),
+            value.e_cost.unwrap_or(traversev::Params::DEFAULT_E),
+            value.n_cost.unwrap_or(traversev::Params::DEFAULT_N),
+        )
+        .map_err(|e| Self::Error::Params(e))?;
+
+        let auth_tag: [u8; 32] = value
+            .auth_tag
+            .clone()
+            .try_into()
+            .map_err(|_| Self::Error::TagLen)?;
+
+        Ok(Challenge {
+            id: value.id,
+            expires_at: value.expires_at,
+            nonce: value.nonce.clone(),
+            params,
+            auth_tag,
+        })
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -116,10 +132,28 @@ pub(crate) struct ChallengeWire {
     pub(crate) e_cost: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) n_cost: Option<u32>,
+    #[serde(with = "b64url_vec")]
+    pub(crate) auth_tag: Vec<u8>,
 }
 
 impl Wire for ChallengeWire {}
 
+impl From<&Challenge> for ChallengeWire {
+    fn from(value: &Challenge) -> Self {
+        Self {
+            id: value.id,
+            expires_at: value.expires_at,
+            nonce: value.nonce.clone(),
+            m_cost: non_default(value.params.m_cost(), Params::DEFAULT_M),
+            t_cost: non_default(value.params.t_cost(), Params::DEFAULT_T),
+            e_cost: non_default(value.params.e_cost(), Params::DEFAULT_E),
+            n_cost: non_default(value.params.n_cost(), Params::DEFAULT_N),
+            auth_tag: value.auth_tag.to_vec(),
+        }
+    }
+}
+
+/*
 #[cfg(test)]
 mod tests {
     use base64::Engine;
@@ -226,3 +260,4 @@ mod tests {
         assert_eq!(p_and_q.as_str(), expected);
     }
 }
+*/

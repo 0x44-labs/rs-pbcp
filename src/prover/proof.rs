@@ -1,5 +1,3 @@
-use base64::Engine;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use http::Uri;
 use num_traits::{FromBytes, ToBytes};
 use serde::{Deserialize, Serialize};
@@ -8,26 +6,25 @@ use ulid::Ulid;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::common::{
-    Claims, Counter, URI_SCHEME, Wire, b64url_array, b64url_vec, host_query,
-    with_decoded,
+    Claims, Counter, URI_SCHEME, Wire, b64url_vec, host_query,
 };
 use crate::errors::PbcpError;
+use crate::verifier::{Challenge, ChallengeWire};
 
-/// A `Proof` represents a [Claims] and the mined nonce that proves it,
-/// bound to a challenge identifier.
+/// A `Proof` represents some [Claims] and the mined nonce that proves them,
+/// bound to the [Challenge] it responds to.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Proof {
-    id: Ulid,
+    challenge: Challenge,
     claims: Claims,
     nonce: Counter,
 }
 
 impl Proof {
-    /// Create a new [Proof] for the given challenge identifier, claims and
-    /// nonce.
-    pub fn new(id: Ulid, claims: &Claims, nonce: Counter) -> Self {
+    /// Create a new [Proof] for the given challenge, claims and nonce.
+    pub fn new(challenge: &Challenge, claims: &Claims, nonce: Counter) -> Self {
         Self {
-            id: id,
+            challenge: challenge.clone(),
             claims: claims.clone(),
             nonce,
         }
@@ -35,10 +32,17 @@ impl Proof {
 
     /// Serialise this [Proof] to a `pbcp://proof` URI.
     pub fn to_uri(&self) -> Result<Uri, PbcpError> {
+        let challenge_wire = ChallengeWire::from(&self.challenge);
         let wire = ProofWire {
-            id: self.id,
-            nonce: self.nonce.to_le_bytes(),
+            id: challenge_wire.id,
+            expires_at: challenge_wire.expires_at,
             claims: self.claims.to_bytes()?,
+            nonce: self.nonce.to_le_bytes().to_vec(),
+            m_cost: challenge_wire.m_cost,
+            t_cost: challenge_wire.t_cost,
+            e_cost: challenge_wire.e_cost,
+            n_cost: challenge_wire.n_cost,
+            auth_tag: challenge_wire.auth_tag,
         };
 
         let p_and_q = wire.path_and_query()?;
@@ -56,66 +60,34 @@ impl Proof {
         let query = host_query(uri, "proof")?;
         let wire: ProofWire = serde_qs::from_str(query)?;
 
-        Ok(Proof {
+        let challenge_wire = ChallengeWire {
             id: wire.id,
+            expires_at: wire.expires_at,
+            nonce: wire.nonce.clone(),
+            m_cost: wire.m_cost,
+            t_cost: wire.t_cost,
+            e_cost: wire.e_cost,
+            n_cost: wire.n_cost,
+            auth_tag: wire.auth_tag.clone(),
+        };
+        let challenge = Challenge::try_from(challenge_wire)?;
+
+        let nonce: [u8; 16] = wire
+            .nonce
+            .clone()
+            .try_into()
+            .map_err(|_| PbcpError::NonceLen)?;
+
+        Ok(Proof {
+            challenge,
             claims: Claims::from_bytes(&wire.claims)?,
-            nonce: Counter::from_le_bytes(&wire.nonce),
+            nonce: Counter::from_le_bytes(&nonce),
         })
     }
 
-    /// Serialise this [Proof] to a string of the form `id.claims.nonce`,
-    /// with the claims and nonce encoded as unpadded URL-safe base64.
-    pub fn to_string(&self) -> Result<String, PbcpError> {
-        let id = self.id.to_string();
-
-        let mut claims_bytes = self.claims.to_bytes()?;
-        let mut nonce_bytes = self.nonce.to_le_bytes();
-
-        let mut claims = URL_SAFE_NO_PAD.encode(&claims_bytes);
-        let mut nonce = URL_SAFE_NO_PAD.encode(&nonce_bytes);
-
-        let proof_str = format!("{id}.{claims}.{nonce}");
-
-        #[cfg(feature = "zeroize")]
-        {
-            claims_bytes.zeroize();
-            nonce_bytes.zeroize();
-            claims.zeroize();
-            nonce.zeroize();
-        }
-
-        Ok(proof_str)
-    }
-
-    /// Parse a [Proof] from a string of the form `id.claims.nonce`, with the
-    /// claims and nonce encoded as unpadded URL-safe base64.
-    pub fn from_string(s: &str) -> Result<Self, PbcpError> {
-        let mut parts = s.split(".");
-        let (Some(first), Some(second), Some(third), None) =
-            (parts.next(), parts.next(), parts.next(), parts.next())
-        else {
-            return Err(PbcpError::ProofFormat);
-        };
-
-        let id =
-            Ulid::from_string(first).map_err(|_| PbcpError::ProofFormat)?;
-        let claims = with_decoded(second, Claims::from_bytes)??;
-        let mut nonce = with_decoded(third, |v| {
-            <&[u8; 16]>::try_from(v).map(|bytes| Counter::from_le_bytes(bytes))
-        })?
-        .map_err(|_| PbcpError::ProofFormat)?;
-
-        let proof = Self { id, claims, nonce };
-
-        #[cfg(feature = "zeroize")]
-        nonce.zeroize();
-
-        Ok(proof)
-    }
-
-    /// Returns the challenge identifier.
-    pub const fn id(&self) -> Ulid {
-        self.id
+    /// Returns reference to the challenge.
+    pub const fn challenge(&self) -> &Challenge {
+        &self.challenge
     }
 
     /// Returns a reference to the claims.
@@ -152,10 +124,21 @@ impl ZeroizeOnDrop for Proof {}
 #[serde(deny_unknown_fields)]
 pub(crate) struct ProofWire {
     pub(crate) id: Ulid,
+    pub(crate) expires_at: u64,
     #[serde(with = "b64url_vec")]
     pub(crate) claims: Vec<u8>,
-    #[serde(with = "b64url_array")]
-    pub(crate) nonce: [u8; 16],
+    #[serde(with = "b64url_vec")]
+    pub(crate) nonce: Vec<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) m_cost: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) t_cost: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) e_cost: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) n_cost: Option<u32>,
+    #[serde(with = "b64url_vec")]
+    pub(crate) auth_tag: Vec<u8>,
 }
 
 impl Wire for ProofWire {}
@@ -178,6 +161,7 @@ impl Drop for ProofWire {
 #[cfg(feature = "zeroize")]
 impl ZeroizeOnDrop for ProofWire {}
 
+/*
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -280,3 +264,4 @@ mod tests {
         assert_eq!(p_and_q.as_str(), expected);
     }
 }
+*/

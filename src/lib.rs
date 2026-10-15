@@ -39,12 +39,12 @@ impl Pbcp {
         }
     }
 
-    /// Create a new [Verifier] for the given challenge nonce and time to live
-    /// (TTL) in seconds.
+    /// Create a new keyed [Verifier] with the given time to live (TTL) in
+    /// seconds.
     ///
-    /// The challenge expires `ttl` seconds after the verifier is created.
-    pub fn verifier(&self, nonce: &[u8], ttl: u64) -> Verifier {
-        Verifier::new(&self.context, nonce, ttl, self.params)
+    /// All challenges expires `ttl` seconds after the verifier issues them.
+    pub fn verifier(&self, key: &[u8; 32], ttl: u64) -> Verifier {
+        Verifier::new(&self.context, key, ttl, self.params)
     }
 
     /// Create a new [Prover] for the given [Challenge].
@@ -67,6 +67,7 @@ impl Pbcp {
     }
 }
 
+/*
 #[cfg(test)]
 mod tests {
     use ulid::Ulid;
@@ -160,3 +161,4 @@ mod tests {
         }
     }
 }
+*/

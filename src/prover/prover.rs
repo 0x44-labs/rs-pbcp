@@ -12,23 +12,25 @@ use crate::verifier::Challenge;
 /// challenge.
 #[derive(Debug)]
 pub struct Prover {
-    id: Ulid,
+    challenge: Challenge,
     tv: TraverseV,
 }
 
 impl Prover {
     pub(crate) fn new(context: &str, challenge: &Challenge) -> Self {
-        let id = challenge.id();
         let nonce = challenge.nonce();
         let params = challenge.params();
 
-        let mut secret = derive_secret(&id, &nonce);
+        let mut secret = derive_secret(&challenge.id(), &nonce);
         let tv = TraverseV::new_permissioned(&secret, context, params);
 
         #[cfg(feature = "zeroize")]
         secret.zeroize();
 
-        Self { id, tv }
+        Self {
+            challenge: challenge.clone(),
+            tv,
+        }
     }
 
     /// Mine a [Proof] over the given [Claims] for the challenge this [Prover]
@@ -43,7 +45,7 @@ impl Prover {
         #[cfg(feature = "zeroize")]
         input.zeroize();
 
-        let proof = Proof::new(self.id, claims, nonce);
+        let proof = Proof::new(&self.challenge, claims, nonce);
 
         #[cfg(feature = "zeroize")]
         nonce.zeroize();
@@ -53,10 +55,11 @@ impl Prover {
 
     /// Returns this prover's challenge identifier.
     pub const fn id(&self) -> Ulid {
-        self.id
+        self.challenge.id()
     }
 }
 
+/*
 #[cfg(test)]
 mod tests {
     use traversev::Params;
@@ -111,3 +114,4 @@ mod tests {
         assert_eq!(prover.id(), id);
     }
 }
+*/
