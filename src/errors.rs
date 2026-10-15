@@ -19,9 +19,6 @@ pub enum PbcpError {
     /// Unable to construct path and query.
     PathAndQuery(http::uri::InvalidUri),
 
-    /// Proof string format invalid for PBCP.
-    ProofFormat,
-
     /// Could not serialise/deserialise querystring.
     QueryString(serde_qs::Error),
 
@@ -53,7 +50,6 @@ impl std::fmt::Display for PbcpError {
             Self::NonceLen => "proof nonce expects 16 bytes",
             Self::Params(e) => return core::fmt::Display::fmt(e, f),
             Self::PathAndQuery(e) => return core::fmt::Display::fmt(e, f),
-            Self::ProofFormat => "proof string format invalid for pbcp",
             Self::QueryString(e) => return core::fmt::Display::fmt(e, f),
             Self::Replayed => "proof already submitted for this challenge",
             Self::TagLen => "authentication tag expects 32 bytes",
@@ -124,7 +120,6 @@ mod tests {
             PbcpError::NonceLen => "proof nonce expects 16 bytes",
             PbcpError::Params(e) => e.to_string().leak(),
             PbcpError::PathAndQuery(e) => e.to_string().leak(),
-            PbcpError::ProofFormat => "proof string format invalid for pbcp",
             PbcpError::QueryString(e) => e.to_string().leak(),
             PbcpError::Replayed => "proof already submitted for this challenge",
             PbcpError::TagLen => "authentication tag expects 32 bytes",
@@ -174,7 +169,6 @@ mod tests {
             (PbcpError::NonceLen, "NonceLen"),
             (params(), "Params"),
             (path_and_query(), "PathAndQuery"),
-            (PbcpError::ProofFormat, "ProofFormat"),
             (query_string(), "QueryString"),
             (PbcpError::Replayed, "Replayed"),
             (PbcpError::TagLen, "TagLen"),

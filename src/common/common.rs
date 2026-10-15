@@ -1,5 +1,3 @@
-use base64::Engine;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use blake3::Hasher;
 use http::Uri;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -29,21 +27,6 @@ pub(crate) fn host_query<'a>(
         Some(q) => Ok(q),
         None => return Err(PbcpError::UriParse),
     }
-}
-
-pub(crate) fn with_decoded<T>(
-    s: &str,
-    f: impl FnOnce(&[u8]) -> T,
-) -> Result<T, PbcpError> {
-    let mut bytes = URL_SAFE_NO_PAD
-        .decode(s)
-        .map_err(|_| PbcpError::ProofFormat)?;
-    let out = f(&bytes);
-
-    #[cfg(feature = "zeroize")]
-    bytes.zeroize();
-
-    Ok(out)
 }
 
 pub(crate) fn unix_now() -> u64 {
