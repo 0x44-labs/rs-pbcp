@@ -45,7 +45,7 @@ impl Verifier {
         let id = Ulid::generate();
         let expires_at = unix_now().saturating_add(self.ttl);
 
-        let tag = auth_tag(&self.key, expires_at, nonce, self.params);
+        let tag = auth_tag(&self.key, id, expires_at, nonce, self.params);
         Challenge::new(id, expires_at, nonce, self.params, tag)
     }
 
@@ -59,6 +59,7 @@ impl Verifier {
 
         let expected = auth_tag(
             &self.key,
+            challenge.id(),
             challenge.expires_at(),
             challenge.nonce(),
             challenge.params(),
@@ -156,6 +157,7 @@ impl Seen {
 
 fn auth_tag(
     key: &[u8; 32],
+    id: Ulid,
     expires_at: u64,
     nonce: &[u8],
     params: Params,
@@ -163,6 +165,7 @@ fn auth_tag(
     let mut hasher = Hasher::new();
 
     hasher.update(key);
+    hasher.update(&id.to_bytes());
     hasher.update(&expires_at.to_le_bytes());
     for cost in [
         params.m_cost(),
