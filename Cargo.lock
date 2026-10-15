@@ -249,6 +249,7 @@ dependencies = [
  "serde_json",
  "serde_json_canonicalizer",
  "serde_qs",
+ "subtle",
  "traversev",
  "ulid",
  "zeroize",
