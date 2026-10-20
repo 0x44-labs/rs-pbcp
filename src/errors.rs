@@ -52,7 +52,7 @@ impl std::fmt::Display for PbcpError {
             Self::PathAndQuery(e) => return core::fmt::Display::fmt(e, f),
             Self::QueryString(e) => return core::fmt::Display::fmt(e, f),
             Self::Replayed => "proof already submitted for this challenge",
-            Self::TagLen => "authentication tag expects 32 bytes",
+            Self::TagLen => "auth tag expects 16 bytes",
             Self::TooCostly => "challenge exceeded the configured costs",
             Self::UriBuilder(e) => return core::fmt::Display::fmt(e, f),
             Self::UriParse => "parsed uri invalid for pbcp",

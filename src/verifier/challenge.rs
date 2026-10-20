@@ -16,7 +16,7 @@ pub struct Challenge {
     expires_at: u64,
     nonce: Vec<u8>,
     params: Params,
-    auth_tag: [u8; 32],
+    auth_tag: [u8; 16],
 }
 
 impl Challenge {
@@ -27,7 +27,7 @@ impl Challenge {
         expires_at: u64,
         nonce: &[u8],
         params: Params,
-        auth_tag: [u8; 32],
+        auth_tag: [u8; 16],
     ) -> Self {
         Self {
             id,
@@ -83,7 +83,7 @@ impl Challenge {
     }
 
     /// Returns the authentication tag.
-    pub const fn auth_tag(&self) -> [u8; 32] {
+    pub const fn auth_tag(&self) -> [u8; 16] {
         self.auth_tag
     }
 }
@@ -100,7 +100,7 @@ impl TryFrom<ChallengeWire> for Challenge {
         )
         .map_err(|e| Self::Error::Params(e))?;
 
-        let auth_tag: [u8; 32] = value
+        let auth_tag: [u8; 16] = value
             .auth_tag
             .clone()
             .try_into()

@@ -172,7 +172,7 @@ fn auth_tag(
     expires_at: u64,
     nonce: &[u8],
     params: Params,
-) -> [u8; 32] {
+) -> [u8; 16] {
     let mut hasher = Hasher::new();
 
     hasher.update(key);
@@ -188,13 +188,14 @@ fn auth_tag(
     }
     hasher.update(&nonce);
 
-    let mut hash = hasher.finalize();
-    let tag: [u8; 32] = hash.into();
+    let mut reader = hasher.finalize_xof();
+    let mut tag = [0u8; 16];
+    reader.fill(&mut tag);
 
     #[cfg(feature = "zeroize")]
     {
         hasher.zeroize();
-        hash.zeroize();
+        reader.zeroize();
     }
 
     tag
