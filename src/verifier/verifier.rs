@@ -112,10 +112,12 @@ impl Verifier {
 
     /// Verify a [Proof] and report the result as an [Outcome].
     pub fn judge(&self, proof: &Proof) -> Outcome {
+        let id = proof.challenge().id();
+
         match self.verify(proof) {
-            Ok(true) => Outcome::Accepted,
-            Ok(false) => Outcome::Rejected,
-            Err(e) => Outcome::from_error(e),
+            Ok(true) => Outcome::Accepted(id),
+            Ok(false) => Outcome::Rejected(id),
+            Err(e) => Outcome::from_error(id, e),
         }
     }
 
