@@ -36,6 +36,7 @@ impl Proof {
         let wire = ProofWire {
             id: challenge_wire.id,
             expires_at: challenge_wire.expires_at,
+            challenge: self.challenge.nonce().to_vec(),
             claims: self.claims.to_bytes()?,
             nonce: self.nonce.to_le_bytes().to_vec(),
             m_cost: challenge_wire.m_cost,
@@ -63,7 +64,7 @@ impl Proof {
         let challenge_wire = ChallengeWire {
             id: wire.id,
             expires_at: wire.expires_at,
-            nonce: wire.nonce.clone(),
+            nonce: wire.challenge.clone(),
             m_cost: wire.m_cost,
             t_cost: wire.t_cost,
             e_cost: wire.e_cost,
@@ -127,6 +128,8 @@ pub(crate) struct ProofWire {
     pub(crate) expires_at: u64,
     #[serde(with = "b64url_vec")]
     pub(crate) claims: Vec<u8>,
+    #[serde(with = "b64url_vec")]
+    pub(crate) challenge: Vec<u8>,
     #[serde(with = "b64url_vec")]
     pub(crate) nonce: Vec<u8>,
     #[serde(skip_serializing_if = "Option::is_none")]
