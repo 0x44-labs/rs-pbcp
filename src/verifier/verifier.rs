@@ -78,11 +78,20 @@ impl Verifier {
             Err(e) => return Err(e),
         };
 
-        if !store.check_and_insert(challenge.id(), challenge.expires_at()) {
-            #[cfg(feature = "zeroize")]
-            input.zeroize();
+        match store.check_and_insert(challenge.id(), challenge.expires_at()) {
+            Ok(true) => {}
+            Ok(false) => {
+                #[cfg(feature = "zeroize")]
+                input.zeroize();
 
-            return Err(PbcpError::Replayed);
+                return Err(PbcpError::Replayed);
+            }
+            Err(e) => {
+                #[cfg(feature = "zeroize")]
+                input.zeroize();
+
+                return Err(e);
+            }
         }
 
         let mut secret = derive_secret(&challenge.id(), challenge.nonce());

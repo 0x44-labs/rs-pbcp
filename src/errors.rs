@@ -25,7 +25,10 @@ pub enum PbcpError {
     /// Proof already submitted for this challenge.
     Replayed,
 
-    /// Authentication tag expects 32 bytes.
+    /// Replay store operation failed.
+    StoreFail(Box<dyn std::error::Error + Send + Sync>),
+
+    /// Authentication tag expects 16 bytes.
     TagLen,
 
     /// Challenge exceeded the configured costs.
@@ -52,6 +55,7 @@ impl std::fmt::Display for PbcpError {
             Self::PathAndQuery(e) => return core::fmt::Display::fmt(e, f),
             Self::QueryString(e) => return core::fmt::Display::fmt(e, f),
             Self::Replayed => "proof already submitted for this challenge",
+            Self::StoreFail(e) => return core::fmt::Display::fmt(e, f),
             Self::TagLen => "auth tag expects 16 bytes",
             Self::TooCostly => "challenge exceeded the configured costs",
             Self::UriBuilder(e) => return core::fmt::Display::fmt(e, f),
@@ -69,6 +73,7 @@ impl std::error::Error for PbcpError {
             Self::Params(e) => Some(e),
             Self::PathAndQuery(e) => Some(e),
             Self::QueryString(e) => Some(e),
+            Self::StoreFail(e) => Some(e.as_ref()),
             Self::UriBuilder(e) => Some(e),
             _ => None,
         }
@@ -99,6 +104,12 @@ impl From<serde_qs::Error> for PbcpError {
     }
 }
 
+impl From<Box<dyn std::error::Error + Send + Sync>> for PbcpError {
+    fn from(value: Box<dyn std::error::Error + Send + Sync>) -> Self {
+        Self::StoreFail(value)
+    }
+}
+
 impl From<http::Error> for PbcpError {
     fn from(value: http::Error) -> Self {
         Self::UriBuilder(value)
@@ -122,7 +133,8 @@ mod tests {
             PbcpError::PathAndQuery(e) => e.to_string().leak(),
             PbcpError::QueryString(e) => e.to_string().leak(),
             PbcpError::Replayed => "proof already submitted for this challenge",
-            PbcpError::TagLen => "authentication tag expects 32 bytes",
+            PbcpError::StoreFail(e) => e.to_string().leak(),
+            PbcpError::TagLen => "auth tag expects 16 bytes",
             PbcpError::TooCostly => "challenge exceeded the configured costs",
             PbcpError::UriBuilder(e) => e.to_string().leak(),
             PbcpError::UriParse => "parsed uri invalid for pbcp",
@@ -153,6 +165,12 @@ mod tests {
         serde_qs::from_str::<Query>("n=abc").unwrap_err().into()
     }
 
+    fn store_fail() -> PbcpError {
+        let source: Box<dyn std::error::Error + Send + Sync> =
+            "backend unavailable".into();
+        source.into()
+    }
+
     fn uri_builder() -> PbcpError {
         http::uri::Builder::new()
             .scheme("not a scheme")
@@ -171,6 +189,7 @@ mod tests {
             (path_and_query(), "PathAndQuery"),
             (query_string(), "QueryString"),
             (PbcpError::Replayed, "Replayed"),
+            (store_fail(), "StoreFail"),
             (PbcpError::TagLen, "TagLen"),
             (PbcpError::TooCostly, "TooCostly"),
             (uri_builder(), "UriBuilder"),
@@ -213,6 +232,7 @@ mod tests {
                     | "Params"
                     | "PathAndQuery"
                     | "QueryString"
+                    | "StoreFail"
                     | "UriBuilder"
             );
             let dyn_err: &dyn std::error::Error = &err;

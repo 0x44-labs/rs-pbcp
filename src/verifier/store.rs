@@ -4,7 +4,7 @@ use std::{
 };
 use ulid::Ulid;
 
-use crate::common::unix_now;
+use crate::{PbcpError, common::unix_now};
 
 /// Registry of challenges by identifier that have already been used.
 pub struct ReplayStore {
@@ -25,11 +25,20 @@ impl ReplayStore {
     ///
     /// The function receives a challenge identifier and a retention deadline
     /// (Unix seconds), which is the challenge expiration plus any configured
-    /// margin. It must atomically record the identifier if it is absent, keep
-    /// it at least until the deadline, and return `true` only if this call
-    /// recorded it.
+    /// margin. It must atomically record the identifier if it is absent, and
+    /// keep it at least until the deadline. It returns `Ok(true)` only if
+    /// this call recorded it, `Ok(false)` if the identifier was already
+    /// present, and `Err` if the result could not be determined.
     pub fn from_fn(
-        check_and_insert: impl Fn(Ulid, u64) -> bool + Send + Sync + 'static,
+        check_and_insert: impl Fn(
+            Ulid,
+            u64,
+        ) -> Result<
+            bool,
+            Box<dyn std::error::Error + Send + Sync>,
+        > + Send
+        + Sync
+        + 'static,
     ) -> Self {
         Self {
             storage: Storage::External(Box::new(check_and_insert)),
@@ -47,19 +56,24 @@ impl ReplayStore {
     /// Atomically check whether a challenge identifier has been seen and
     /// record it if not.
     ///
-    /// Returns `true` the first time an identifier is presented and `false` on
-    /// every later attempt.
-    pub fn check_and_insert(&self, id: Ulid, expires_at: u64) -> bool {
+    /// Returns `Ok(true)` the first time an identifier is presented and
+    /// `Ok(false)` on every later attempt. Returns an error if an external
+    /// store fails.
+    pub fn check_and_insert(
+        &self,
+        id: Ulid,
+        expires_at: u64,
+    ) -> Result<bool, PbcpError> {
         let retain_until = expires_at.saturating_add(self.margin);
 
         match &self.storage {
             Storage::Memory(memory) => {
                 let mut memory =
                     memory.lock().unwrap_or_else(PoisonError::into_inner);
-                memory.check_and_insert(id, retain_until, unix_now())
+                Ok(memory.check_and_insert(id, retain_until, unix_now()))
             }
             Storage::External(check_and_insert) => {
-                check_and_insert(id, retain_until)
+                Ok(check_and_insert(id, retain_until)?)
             }
         }
     }
@@ -81,7 +95,17 @@ impl core::fmt::Debug for ReplayStore {
 
 enum Storage {
     Memory(Mutex<Memory>),
-    External(Box<dyn Fn(Ulid, u64) -> bool + Send + Sync>),
+    External(
+        Box<
+            dyn Fn(
+                    Ulid,
+                    u64,
+                )
+                    -> Result<bool, Box<dyn std::error::Error + Send + Sync>>
+                + Send
+                + Sync,
+        >,
+    ),
 }
 
 struct Memory {
