@@ -12,7 +12,7 @@ use zeroize::Zeroize;
 use crate::common::{derive_secret, unix_now};
 use crate::errors::PbcpError;
 use crate::prover::Proof;
-use crate::verifier::Challenge;
+use crate::verifier::{Challenge, Outcome};
 
 /// Verifier for [Pbcp], capable of issuing [Challenges](Challenge) and
 /// evaluating any received [Proof] for authenticity.
@@ -108,6 +108,15 @@ impl Verifier {
         }
 
         Ok(valid)
+    }
+
+    /// Verify a [Proof] and report the result as an [Outcome].
+    pub fn judge(&self, proof: &Proof) -> Outcome {
+        match self.verify(proof) {
+            Ok(true) => Outcome::Accepted,
+            Ok(false) => Outcome::Rejected,
+            Err(e) => Outcome::from_error(e),
+        }
     }
 
     /// Returns the TTL applied to issued challenges, in seconds.

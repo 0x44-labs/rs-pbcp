@@ -12,7 +12,7 @@ mod verifier;
 pub use crate::common::{Claims, ClaimsBuilder, Counter};
 pub use crate::errors::PbcpError;
 pub use crate::prover::{Proof, Prover};
-pub use crate::verifier::{Challenge, Verifier};
+pub use crate::verifier::{Challenge, Outcome, Verifier};
 
 /// Alias for TraverseV proof-of-work parameters.
 pub type TvParams = traversev::Params;
