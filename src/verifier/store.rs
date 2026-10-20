@@ -1,38 +1,38 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    sync::{Arc, Mutex, PoisonError},
+    sync::{Mutex, PoisonError},
 };
 use ulid::Ulid;
 
 use crate::common::unix_now;
 
 /// Registry of challenges by identifier that have already been used.
-#[derive(Clone)]
 pub struct ReplayStore {
     storage: Storage,
     margin: u64,
 }
 
 impl ReplayStore {
-    /// Create an in-memory store, local to this process and its clones.
+    /// Create an in-memory store, local to this process.
     pub fn new() -> Self {
         Self {
-            storage: Storage::Memory(Arc::default()),
+            storage: Storage::Memory(Mutex::default()),
             margin: 0,
         }
     }
 
     /// Create a store backed by an external check-and-insert function.
     ///
-    /// The function receives a challenge identifier and expiration (Unix
-    /// seconds). It must atomically record the identifier if it is absent,
-    /// keep it at least until the deadline, and return `true` only if this
-    /// call recorded it.
+    /// The function receives a challenge identifier and a retention deadline
+    /// (Unix seconds), which is the challenge expiration plus any configured
+    /// margin. It must atomically record the identifier if it is absent, keep
+    /// it at least until the deadline, and return `true` only if this call
+    /// recorded it.
     pub fn from_fn(
         check_and_insert: impl Fn(Ulid, u64) -> bool + Send + Sync + 'static,
     ) -> Self {
         Self {
-            storage: Storage::External(Arc::new(check_and_insert)),
+            storage: Storage::External(Box::new(check_and_insert)),
             margin: 0,
         }
     }
@@ -79,10 +79,9 @@ impl core::fmt::Debug for ReplayStore {
     }
 }
 
-#[derive(Clone)]
 enum Storage {
-    Memory(Arc<Mutex<Memory>>),
-    External(Arc<dyn Fn(Ulid, u64) -> bool + Send + Sync>),
+    Memory(Mutex<Memory>),
+    External(Box<dyn Fn(Ulid, u64) -> bool + Send + Sync>),
 }
 
 struct Memory {

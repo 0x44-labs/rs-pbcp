@@ -43,13 +43,8 @@ impl Pbcp {
     /// seconds.
     ///
     /// All challenges expires `ttl` seconds after the verifier issues them.
-    pub fn verifier(
-        &self,
-        key: &[u8; 32],
-        ttl: u64,
-        store: ReplayStore,
-    ) -> Verifier {
-        Verifier::new(&self.context, key, ttl, self.params, store)
+    pub fn verifier(&self, key: &[u8; 32], ttl: u64) -> Verifier {
+        Verifier::new(&self.context, key, ttl, self.params)
     }
 
     /// Create a new [Prover] for the given [Challenge].

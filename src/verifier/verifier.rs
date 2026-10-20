@@ -17,7 +17,6 @@ pub struct Verifier {
     key: [u8; 32],
     ttl: u64,
     params: Params,
-    store: ReplayStore,
 }
 
 impl Verifier {
@@ -26,14 +25,12 @@ impl Verifier {
         key: &[u8; 32],
         ttl: u64,
         params: Params,
-        store: ReplayStore,
     ) -> Self {
         Self {
             context: context.to_owned(),
             key: *key,
             ttl,
             params,
-            store,
         }
     }
 
@@ -49,9 +46,13 @@ impl Verifier {
     /// Verify a [Proof] against this verifier's challenge, returning
     /// whether its nonce is a valid proof over its claims.
     ///
-    /// Returns an error if the proof belongs to a different challenge or the
-    /// challenge has expired.
-    pub fn verify(&self, proof: &Proof) -> Result<bool, PbcpError> {
+    /// Returns an error if the proof belongs to a different challenge, the
+    /// challenge has expired, or the challenge is already recorded in `store`.
+    pub fn verify(
+        &self,
+        proof: &Proof,
+        store: &ReplayStore,
+    ) -> Result<bool, PbcpError> {
         let challenge = proof.challenge();
 
         let expected = auth_tag(
@@ -77,10 +78,7 @@ impl Verifier {
             Err(e) => return Err(e),
         };
 
-        if !self
-            .store
-            .check_and_insert(challenge.id(), challenge.expires_at())
-        {
+        if !store.check_and_insert(challenge.id(), challenge.expires_at()) {
             #[cfg(feature = "zeroize")]
             input.zeroize();
 
@@ -107,10 +105,10 @@ impl Verifier {
     }
 
     /// Verify a [Proof] and report the result as an [Outcome].
-    pub fn judge(&self, proof: &Proof) -> Outcome {
+    pub fn judge(&self, proof: &Proof, store: &ReplayStore) -> Outcome {
         let id = proof.challenge().id();
 
-        match self.verify(proof) {
+        match self.verify(proof, store) {
             Ok(true) => Outcome::Accepted(id),
             Ok(false) => Outcome::Rejected(id),
             Err(e) => Outcome::from_error(id, e),
