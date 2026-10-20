@@ -12,7 +12,7 @@ mod verifier;
 pub use crate::common::{Claims, ClaimsBuilder, Counter};
 pub use crate::errors::PbcpError;
 pub use crate::prover::{Proof, Prover};
-pub use crate::verifier::{Challenge, Outcome, Verifier};
+pub use crate::verifier::{Challenge, Outcome, ReplayStore, Verifier};
 
 /// Alias for TraverseV proof-of-work parameters.
 pub type TvParams = traversev::Params;
@@ -43,8 +43,13 @@ impl Pbcp {
     /// seconds.
     ///
     /// All challenges expires `ttl` seconds after the verifier issues them.
-    pub fn verifier(&self, key: &[u8; 32], ttl: u64) -> Verifier {
-        Verifier::new(&self.context, key, ttl, self.params)
+    pub fn verifier(
+        &self,
+        key: &[u8; 32],
+        ttl: u64,
+        store: ReplayStore,
+    ) -> Verifier {
+        Verifier::new(&self.context, key, ttl, self.params, store)
     }
 
     /// Create a new [Prover] for the given [Challenge].

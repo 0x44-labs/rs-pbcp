@@ -1,8 +1,4 @@
 use blake3::Hasher;
-use std::{
-    collections::BTreeSet,
-    sync::{Mutex, PoisonError},
-};
 use subtle::ConstantTimeEq;
 use traversev::{Params, TraverseV};
 use ulid::Ulid;
@@ -12,7 +8,7 @@ use zeroize::Zeroize;
 use crate::common::{derive_secret, unix_now};
 use crate::errors::PbcpError;
 use crate::prover::Proof;
-use crate::verifier::{Challenge, Outcome};
+use crate::verifier::{Challenge, Outcome, ReplayStore};
 
 /// Verifier for [Pbcp], capable of issuing [Challenges](Challenge) and
 /// evaluating any received [Proof] for authenticity.
@@ -21,7 +17,7 @@ pub struct Verifier {
     key: [u8; 32],
     ttl: u64,
     params: Params,
-    seen: Mutex<Seen>,
+    store: ReplayStore,
 }
 
 impl Verifier {
@@ -30,13 +26,14 @@ impl Verifier {
         key: &[u8; 32],
         ttl: u64,
         params: Params,
+        store: ReplayStore,
     ) -> Self {
         Self {
             context: context.to_owned(),
             key: *key,
             ttl,
             params,
-            seen: Mutex::new(Seen::new()),
+            store,
         }
     }
 
@@ -80,16 +77,15 @@ impl Verifier {
             Err(e) => return Err(e),
         };
 
-        let mut seen = self.seen.lock().unwrap_or_else(PoisonError::into_inner);
-        seen.evict(unix_now());
-        if seen.contains(challenge.id(), challenge.expires_at()) {
+        if !self
+            .store
+            .check_and_insert(challenge.id(), challenge.expires_at())
+        {
             #[cfg(feature = "zeroize")]
             input.zeroize();
 
             return Err(PbcpError::Replayed);
         }
-        seen.record(challenge.id(), challenge.expires_at());
-        drop(seen);
 
         let mut secret = derive_secret(&challenge.id(), challenge.nonce());
         let tv = TraverseV::new_permissioned(
@@ -138,31 +134,6 @@ impl core::fmt::Debug for Verifier {
             .field("ttl", &self.ttl)
             .field("params", &self.params)
             .finish_non_exhaustive()
-    }
-}
-
-struct Seen(BTreeSet<(u64, Ulid)>);
-
-impl Seen {
-    fn new() -> Self {
-        Self(BTreeSet::new())
-    }
-
-    fn contains(&self, id: Ulid, expires_at: u64) -> bool {
-        self.0.contains(&(expires_at, id))
-    }
-
-    fn record(&mut self, id: Ulid, expires_at: u64) {
-        self.0.insert((expires_at, id));
-    }
-
-    fn evict(&mut self, now: u64) {
-        while let Some(&(expiry, _)) = self.0.first() {
-            if expiry >= now {
-                break;
-            }
-            self.0.pop_first();
-        }
     }
 }
 
