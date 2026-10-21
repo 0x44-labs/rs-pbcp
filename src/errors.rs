@@ -1,6 +1,12 @@
 /// Errors returned by PBCP.
 #[derive(Debug)]
 pub enum PbcpError {
+    /// Could not CBOR deserialise data.
+    CborDe(ciborium::de::Error<std::io::Error>),
+
+    /// Could not CBOR serialise data.
+    CborSer(ciborium::ser::Error<std::io::Error>),
+
     /// Submitted proof is expired.
     Expired,
 
@@ -47,6 +53,8 @@ pub enum PbcpError {
 impl std::fmt::Display for PbcpError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let msg = match self {
+            Self::CborDe(e) => return core::fmt::Display::fmt(e, f),
+            Self::CborSer(e) => return core::fmt::Display::fmt(e, f),
             Self::Expired => "submitted proof is expired",
             Self::InvalidHost => "uri host invalid for pbcp",
             Self::Json(e) => return core::fmt::Display::fmt(e, f),
@@ -69,6 +77,8 @@ impl std::fmt::Display for PbcpError {
 impl std::error::Error for PbcpError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::CborDe(e) => Some(e),
+            Self::CborSer(e) => Some(e),
             Self::Json(e) => Some(e),
             Self::Params(e) => Some(e),
             Self::PathAndQuery(e) => Some(e),
@@ -77,6 +87,18 @@ impl std::error::Error for PbcpError {
             Self::UriBuilder(e) => Some(e),
             _ => None,
         }
+    }
+}
+
+impl From<ciborium::de::Error<std::io::Error>> for PbcpError {
+    fn from(value: ciborium::de::Error<std::io::Error>) -> Self {
+        Self::CborDe(value)
+    }
+}
+
+impl From<ciborium::ser::Error<std::io::Error>> for PbcpError {
+    fn from(value: ciborium::ser::Error<std::io::Error>) -> Self {
+        Self::CborSer(value)
     }
 }
 
@@ -125,6 +147,8 @@ mod tests {
     /// Expected [Display](core::fmt::Display) output.
     fn expected_display(err: &PbcpError) -> &'static str {
         match err {
+            PbcpError::CborDe(e) => e.to_string().leak(),
+            PbcpError::CborSer(e) => e.to_string().leak(),
             PbcpError::Expired => "submitted proof is expired",
             PbcpError::InvalidHost => "uri host invalid for pbcp",
             PbcpError::Json(e) => e.to_string().leak(),
@@ -140,6 +164,15 @@ mod tests {
             PbcpError::UriParse => "parsed uri invalid for pbcp",
             PbcpError::WrongChallenge => "proof submitted to wrong challenge",
         }
+    }
+
+    fn cbor_de() -> PbcpError {
+        ciborium::de::Error::<std::io::Error>::Syntax(0).into()
+    }
+
+    fn cbor_ser() -> PbcpError {
+        ciborium::ser::Error::<std::io::Error>::Value("unserialisable".into())
+            .into()
     }
 
     fn json() -> PbcpError {
@@ -181,6 +214,8 @@ mod tests {
 
     fn all_variants() -> Vec<(PbcpError, &'static str)> {
         vec![
+            (cbor_de(), "CborDe"),
+            (cbor_ser(), "CborSer"),
             (PbcpError::Expired, "Expired"),
             (PbcpError::InvalidHost, "InvalidHost"),
             (json(), "Json"),
@@ -228,7 +263,9 @@ mod tests {
             let expected = expected_display(&err);
             let wrapped = matches!(
                 name,
-                "Json"
+                "CborDe"
+                    | "CborSer"
+                    | "Json"
                     | "Params"
                     | "PathAndQuery"
                     | "QueryString"

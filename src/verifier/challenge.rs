@@ -62,6 +62,21 @@ impl Challenge {
         Challenge::try_from(wire)
     }
 
+    /// Serialise this [Challenge] to CBOR bytes, omitting parameters that have
+    /// their default values.
+    pub fn to_bytes(&self) -> Result<Vec<u8>, PbcpError> {
+        let mut buf = Vec::new();
+        ciborium::into_writer(&ChallengeWire::from(self), &mut buf)?;
+        Ok(buf)
+    }
+
+    /// Parse a [Challenge] from CBOR bytes, using defaults for omitted
+    /// parameters.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, PbcpError> {
+        let wire: ChallengeWire = ciborium::from_reader(bytes)?;
+        Challenge::try_from(wire)
+    }
+
     /// Returns the challenge identifier.
     pub const fn id(&self) -> Ulid {
         self.id
