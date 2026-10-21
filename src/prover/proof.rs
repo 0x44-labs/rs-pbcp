@@ -32,19 +32,7 @@ impl Proof {
 
     /// Serialise this [Proof] to a `pbcp://proof` URI.
     pub fn to_uri(&self) -> Result<Uri, PbcpError> {
-        let challenge_wire = ChallengeWire::from(&self.challenge);
-        let wire = ProofWire {
-            id: challenge_wire.id,
-            expires_at: challenge_wire.expires_at,
-            challenge: self.challenge.nonce().to_vec(),
-            claims: self.claims.to_bytes()?,
-            nonce: self.nonce.to_le_bytes().to_vec(),
-            m_cost: challenge_wire.m_cost,
-            t_cost: challenge_wire.t_cost,
-            e_cost: challenge_wire.e_cost,
-            n_cost: challenge_wire.n_cost,
-            auth_tag: challenge_wire.auth_tag,
-        };
+        let wire = ProofWire::try_from(self)?;
 
         let p_and_q = wire.path_and_query()?;
         let uri = Uri::builder()
@@ -61,29 +49,21 @@ impl Proof {
         let query = host_query(uri, "proof")?;
         let wire: ProofWire = serde_qs::from_str(query)?;
 
-        let challenge_wire = ChallengeWire {
-            id: wire.id,
-            expires_at: wire.expires_at,
-            nonce: wire.challenge.clone(),
-            m_cost: wire.m_cost,
-            t_cost: wire.t_cost,
-            e_cost: wire.e_cost,
-            n_cost: wire.n_cost,
-            auth_tag: wire.auth_tag.clone(),
-        };
-        let challenge = Challenge::try_from(challenge_wire)?;
+        Proof::try_from(wire)
+    }
 
-        let nonce: [u8; 16] = wire
-            .nonce
-            .clone()
-            .try_into()
-            .map_err(|_| PbcpError::NonceLen)?;
+    /// Serialise this [Proof] to CBOR bytes, omitting parameters that have
+    /// their default values.
+    pub fn to_bytes(&self) -> Result<Vec<u8>, PbcpError> {
+        let mut buf = Vec::new();
+        ciborium::into_writer(&ProofWire::try_from(self)?, &mut buf)?;
+        Ok(buf)
+    }
 
-        Ok(Proof {
-            challenge,
-            claims: Claims::from_bytes(&wire.claims)?,
-            nonce: Counter::from_le_bytes(&nonce),
-        })
+    /// Parse a [Proof] from CBOR bytes, using defaults for omitted parameters.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, PbcpError> {
+        let wire: ProofWire = ciborium::from_reader(bytes)?;
+        Proof::try_from(wire)
     }
 
     /// Returns reference to the challenge.
@@ -99,6 +79,36 @@ impl Proof {
     /// Returns the nonce.
     pub const fn nonce(&self) -> Counter {
         self.nonce
+    }
+}
+
+impl TryFrom<ProofWire> for Proof {
+    type Error = PbcpError;
+
+    fn try_from(value: ProofWire) -> Result<Self, Self::Error> {
+        let challenge_wire = ChallengeWire {
+            id: value.id,
+            expires_at: value.expires_at,
+            nonce: value.challenge.clone(),
+            m_cost: value.m_cost,
+            t_cost: value.t_cost,
+            e_cost: value.e_cost,
+            n_cost: value.n_cost,
+            auth_tag: value.auth_tag.clone(),
+        };
+        let challenge = Challenge::try_from(challenge_wire)?;
+
+        let nonce: [u8; 16] = value
+            .nonce
+            .clone()
+            .try_into()
+            .map_err(|_| PbcpError::NonceLen)?;
+
+        Ok(Self {
+            challenge,
+            claims: Claims::from_bytes(&value.claims)?,
+            nonce: Counter::from_le_bytes(&nonce),
+        })
     }
 }
 
@@ -145,6 +155,27 @@ pub(crate) struct ProofWire {
 }
 
 impl Wire for ProofWire {}
+
+impl TryFrom<&Proof> for ProofWire {
+    type Error = PbcpError;
+
+    fn try_from(value: &Proof) -> Result<Self, Self::Error> {
+        let challenge_wire = ChallengeWire::from(&value.challenge);
+
+        Ok(Self {
+            id: challenge_wire.id,
+            expires_at: challenge_wire.expires_at,
+            challenge: challenge_wire.nonce.to_vec(),
+            claims: value.claims.to_bytes()?,
+            nonce: value.nonce.to_le_bytes().to_vec(),
+            m_cost: challenge_wire.m_cost,
+            t_cost: challenge_wire.t_cost,
+            e_cost: challenge_wire.e_cost,
+            n_cost: challenge_wire.n_cost,
+            auth_tag: challenge_wire.auth_tag,
+        })
+    }
+}
 
 #[cfg(feature = "zeroize")]
 impl Zeroize for ProofWire {
