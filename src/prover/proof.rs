@@ -195,12 +195,23 @@ impl Drop for ProofWire {
 #[cfg(feature = "zeroize")]
 impl ZeroizeOnDrop for ProofWire {}
 
-/*
 #[cfg(test)]
 mod tests {
+    use traversev::Params;
+
+    use crate::common::unix_now;
+
     use super::*;
 
-    type Error = PbcpError;
+    fn challenge() -> Challenge {
+        Challenge::new(
+            Ulid::generate(),
+            unix_now() + 300,
+            b"This is a challenge nonce",
+            Params::new(8, 2, 2, 12).expect("valid parameters"),
+            [0u8; 16],
+        )
+    }
 
     fn claims() -> Claims {
         Claims::builder()
@@ -212,17 +223,16 @@ mod tests {
             .build()
     }
 
-    fn proof() -> Proof {
-        let id = Ulid::generate();
+    fn proof(challenge: &Challenge) -> Proof {
         let claims = claims();
         let nonce = Counter::default();
 
-        Proof::new(id, &claims, nonce)
+        Proof::new(challenge, &claims, nonce)
     }
 
     #[test]
     fn uri_round_trip() {
-        let original = proof();
+        let original = proof(&challenge());
         let uri = original.to_uri().expect("valid Proof serialises to URI");
 
         let reconstructed =
@@ -231,71 +241,26 @@ mod tests {
     }
 
     #[test]
-    fn string_round_trip() {
-        let original = proof();
-        let string = original
-            .to_string()
-            .expect("valid Proof serialises to string");
+    fn cbor_bytes_round_trip() {
+        let original = proof(&challenge());
+        let bytes = original
+            .to_bytes()
+            .expect("valid Proof serialises to CBOR bytes");
 
         let reconstructed =
-            Proof::from_string(&string).expect("valid string parses to Proof");
+            Proof::from_bytes(&bytes).expect("valid CBOR bytes parse to Proof");
         assert_eq!(original, reconstructed);
     }
 
     #[test]
-    fn from_string_rejects_malformed() {
-        let id = Ulid::generate();
-        let claims = URL_SAFE_NO_PAD.encode(
-            claims()
-                .to_bytes()
-                .expect("valid Claims serialise to canonical JSON bytes"),
-        );
-        let nonce = URL_SAFE_NO_PAD.encode(0u128.to_le_bytes());
-
-        for string in [
-            format!("{nonce}.{claims}.{id}"),
-            format!("{claims}.{id}.{nonce}"),
-            format!("{id}.{claims}"),
-            format!("{claims}.{nonce}"),
-        ] {
-            let result = Proof::from_string(&string);
-            assert!(matches!(result.err(), Some(Error::ProofFormat)));
-        }
-    }
-
-    #[test]
     fn accessors_return_their_own_field() {
-        let id = Ulid::generate();
+        let challenge = challenge();
         let claims = claims();
         let nonce = Counter::default();
-        let proof = Proof::new(id, &claims, nonce);
+        let proof = Proof::new(&challenge, &claims, nonce);
 
-        assert_eq!(proof.id(), id);
+        assert_eq!(proof.challenge(), &challenge);
         assert_eq!(proof.claims(), &claims);
         assert_eq!(proof.nonce(), nonce);
     }
-
-    #[test]
-    fn path_and_query_layout() {
-        let id = Ulid::generate();
-        let claims = claims()
-            .to_bytes()
-            .expect("valid Claims serialise to canonical JSON bytes");
-        let nonce = Counter::default().to_le_bytes();
-
-        let expected = format!(
-            "/?id={}&claims={}&nonce={}",
-            id,
-            URL_SAFE_NO_PAD.encode(&claims),
-            URL_SAFE_NO_PAD.encode(&nonce)
-        );
-
-        let wire = ProofWire { id, claims, nonce };
-        let p_and_q = wire
-            .path_and_query()
-            .expect("valid wire builds path and query");
-
-        assert_eq!(p_and_q.as_str(), expected);
-    }
 }
-*/

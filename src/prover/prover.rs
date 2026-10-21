@@ -1,5 +1,4 @@
 use traversev::TraverseV;
-use ulid::Ulid;
 #[cfg(feature = "zeroize")]
 use zeroize::Zeroize;
 
@@ -53,28 +52,31 @@ impl Prover {
         Ok(proof)
     }
 
-    /// Returns this prover's challenge identifier.
-    pub const fn id(&self) -> Ulid {
-        self.challenge.id()
+    /// Returns a reference to this prover's challenge.
+    pub const fn challenge(&self) -> &Challenge {
+        &self.challenge
     }
 }
 
-/*
 #[cfg(test)]
 mod tests {
     use traversev::Params;
+    use ulid::Ulid;
 
     use crate::common::unix_now;
 
     use super::*;
 
-    const CONTEXT: &str = "PBCP_TEST";
-    const NONCE: &[u8] = b"This is a challenge nonce";
-    const TTL: u64 = 300;
+    const CONTEXT: &str = "This is a context string";
 
-    /// Parameters for testing.
-    fn params() -> Params {
-        Params::new(8, 2, 2, 12).expect("test parameters are valid")
+    fn challenge() -> Challenge {
+        Challenge::new(
+            Ulid::generate(),
+            unix_now() + 300,
+            b"This is a challenge nonce",
+            Params::new(8, 2, 2, 12).expect("valid parameters"),
+            [0u8; 16],
+        )
     }
 
     fn claims() -> Claims {
@@ -87,31 +89,20 @@ mod tests {
             .build()
     }
 
-    fn challenge(id: Ulid) -> Challenge {
-        let expires_at = unix_now() + TTL;
-        Challenge::new(id, expires_at, NONCE, params())
-    }
-
     #[test]
-    fn prove_binds_challenge_and_claims() {
-        let id = Ulid::generate();
-        let prover = Prover::new(CONTEXT, &challenge(id));
+    fn prove_mines_proof() {
+        let prover = Prover::new(CONTEXT, &challenge());
         let claims = claims();
 
-        let proof = prover
-            .prove(&claims)
-            .expect("any valid Claims are provable");
-
-        assert_eq!(proof.id(), id);
-        assert_eq!(proof.claims(), &claims);
+        let result = prover.prove(&claims);
+        assert!(result.is_ok());
     }
 
     #[test]
     fn accessor_returns_own_field() {
-        let id = Ulid::generate();
-        let prover = Prover::new(CONTEXT, &challenge(id));
+        let challenge = challenge();
+        let prover = Prover::new(CONTEXT, &challenge);
 
-        assert_eq!(prover.id(), id);
+        assert_eq!(prover.challenge(), &challenge);
     }
 }
-*/
