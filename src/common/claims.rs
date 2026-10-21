@@ -1,7 +1,8 @@
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serde_json_canonicalizer;
-use std::collections::BTreeMap;
 #[cfg(feature = "zeroize")]
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
@@ -21,24 +22,24 @@ impl Claims {
         ClaimsBuilder::new()
     }
 
-    /// Parse [Claims] from a JSON string.
-    pub fn from_json(json: &str) -> Result<Self, PbcpError> {
-        Ok(serde_json::from_str(json)?)
-    }
-
     /// Serialise these [Claims] to a JSON string.
     pub fn to_json(&self) -> Result<String, PbcpError> {
         Ok(serde_json::to_string(self)?)
     }
 
-    /// Parse [Claims] from JSON-encoded bytes.
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, PbcpError> {
-        Ok(serde_json::from_slice(bytes)?)
+    /// Parse [Claims] from a JSON string.
+    pub fn from_json(json: &str) -> Result<Self, PbcpError> {
+        Ok(serde_json::from_str(json)?)
     }
 
     /// Serialise these [Claims] to JSON bytes in canonical form.
     pub fn to_bytes(&self) -> Result<Vec<u8>, PbcpError> {
         Ok(serde_json_canonicalizer::to_vec(self)?)
+    }
+
+    /// Parse [Claims] from JSON-encoded bytes.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, PbcpError> {
+        Ok(serde_json::from_slice(bytes)?)
     }
 
     /// Returns the value of the named claim, if it exists.

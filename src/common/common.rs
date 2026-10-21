@@ -1,6 +1,7 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use blake3::Hasher;
 use http::Uri;
-use std::time::{SystemTime, UNIX_EPOCH};
 use ulid::Ulid;
 #[cfg(feature = "zeroize")]
 use zeroize::Zeroize;
@@ -64,6 +65,19 @@ mod tests {
         format!("pbcp://{authority}/?{query}")
             .parse()
             .expect("valid URI")
+    }
+
+    #[test]
+    fn non_default_omits_default() {
+        assert_eq!(non_default(0u32, 0), None);
+        assert_eq!(non_default(1u32, 0), Some(1));
+    }
+
+    #[test]
+    fn host_query_returns_query() {
+        let uri = parse_uri("challenge", "a=b");
+        let query = host_query(&uri, "challenge").expect("query");
+        assert_eq!(query, "a=b");
     }
 
     #[test]

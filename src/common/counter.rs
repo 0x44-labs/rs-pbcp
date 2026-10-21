@@ -1,5 +1,6 @@
-use num_traits::{FromBytes, ToBytes};
 use std::ops::AddAssign;
+
+use num_traits::{FromBytes, ToBytes};
 #[cfg(feature = "zeroize")]
 use zeroize::Zeroize;
 
