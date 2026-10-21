@@ -67,7 +67,6 @@ impl Pbcp {
     }
 }
 
-/*
 #[cfg(test)]
 mod tests {
     use ulid::Ulid;
@@ -76,15 +75,14 @@ mod tests {
 
     use super::*;
 
-    type Error = PbcpError;
-
-    const CONTEXT: &str = "PBCP_TEST";
-    const NONCE: &[u8] = b"This is a challenge nonce";
+    const CONTEXT: &str = "This is a context string";
+    const KEY: [u8; 32] = [0u8; 32];
     const TTL: u64 = 300;
+    const NONCE: &[u8] = b"This is a challenge nonce";
 
     /// Parameters for testing.
     fn params() -> TvParams {
-        TvParams::new(8, 2, 2, 12).expect("test parameters are valid")
+        TvParams::new(8, 2, 2, 12).expect("valid parameters")
     }
 
     fn claims() -> Claims {
@@ -98,26 +96,33 @@ mod tests {
     }
 
     #[test]
-    fn prover_takes_verifier_challenge_id() {
-        let params = params();
-        let pbcp = Pbcp::new(CONTEXT, params);
+    fn verifier_creates_verifier() {
+        let pbcp = Pbcp::new(CONTEXT, params());
 
-        let verifier = pbcp.verifier(NONCE, TTL);
+        let verifier = pbcp.verifier(&KEY, TTL);
+        assert_eq!(verifier.ttl(), TTL);
+    }
+
+    #[test]
+    fn prover_creates_from_challenge() {
+        let pbcp = Pbcp::new(CONTEXT, params());
+        let verifier = pbcp.verifier(&KEY, TTL);
+
         let prover = pbcp
-            .prover(&verifier.to_challenge())
+            .prover(&verifier.issue(NONCE))
             .expect("challenge is within limits");
-
-        assert_eq!(prover.id(), verifier.id());
+        assert_eq!(prover.challenge().nonce(), NONCE);
     }
 
     #[test]
     fn proof_verifies() {
-        let params = params();
-        let pbcp = Pbcp::new(CONTEXT, params);
+        let pbcp = Pbcp::new(CONTEXT, params());
 
-        let verifier = pbcp.verifier(NONCE, TTL);
+        let verifier = pbcp.verifier(&KEY, TTL);
+        let store = ReplayStore::new();
+
         let prover = pbcp
-            .prover(&verifier.to_challenge())
+            .prover(&verifier.issue(NONCE))
             .expect("challenge is within limits");
 
         let claims = claims();
@@ -125,7 +130,7 @@ mod tests {
             .prove(&claims)
             .expect("any valid Claims are provable");
 
-        let result = verifier.verify(&proof);
+        let result = verifier.verify(&proof, &store);
         assert!(result.is_ok());
 
         let valid = result.unwrap();
@@ -134,9 +139,8 @@ mod tests {
 
     #[test]
     fn prover_accepts_challenge_at_limits() {
-        let params = params();
-        let pbcp = Pbcp::new(CONTEXT, params);
-        let challenge = pbcp.verifier(NONCE, TTL).to_challenge();
+        let pbcp = Pbcp::new(CONTEXT, params());
+        let challenge = pbcp.verifier(&KEY, TTL).issue(NONCE);
 
         let result = pbcp.prover(&challenge);
         assert!(result.is_ok());
@@ -144,21 +148,23 @@ mod tests {
 
     #[test]
     fn prover_rejects_challenge_exceeding_limits() {
-        let params = params();
-        let pbcp = Pbcp::new(CONTEXT, params);
+        let pbcp = Pbcp::new(CONTEXT, params());
 
         for (m_cost, t_cost, e_cost, n_cost) in
             [(9, 2, 2, 12), (8, 3, 2, 12), (8, 2, 3, 12), (8, 2, 2, 13)]
         {
-            let id = Ulid::generate();
-            let expires_at = unix_now() + TTL;
             let params = TvParams::new(m_cost, t_cost, e_cost, n_cost)
                 .expect("test parameters are valid");
-            let challenge = Challenge::new(id, expires_at, NONCE, params);
+            let challenge = Challenge::new(
+                Ulid::generate(),
+                unix_now() + TTL,
+                NONCE,
+                params,
+                [0u8; 16],
+            );
 
             let result = pbcp.prover(&challenge);
-            assert!(matches!(result.err(), Some(Error::TooCostly)));
+            assert!(matches!(result.err(), Some(PbcpError::TooCostly)));
         }
     }
 }
-*/
