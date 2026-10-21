@@ -73,10 +73,7 @@ impl Verifier {
             return Err(PbcpError::Expired);
         }
 
-        let mut input = match proof.claims().to_bytes() {
-            Ok(bytes) => bytes,
-            Err(e) => return Err(e),
-        };
+        let mut input = proof.claims().to_bytes()?;
 
         match store.check_and_insert(challenge.id(), challenge.expires_at()) {
             Ok(true) => {}
@@ -179,7 +176,6 @@ fn auth_tag(
     tag
 }
 
-/*
 #[cfg(test)]
 mod tests {
     use crate::common::{Claims, Counter};
@@ -188,13 +184,14 @@ mod tests {
 
     type Error = PbcpError;
 
-    const CONTEXT: &str = "PBCP_TEST";
-    const NONCE: &[u8] = b"This is a challenge nonce";
+    const CONTEXT: &str = "This is a context string";
+    const KEY: [u8; 32] = [0u8; 32];
     const TTL: u64 = 300;
+    const NONCE: &[u8] = b"This is a challenge nonce";
 
     /// Parameters for testing.
     fn params() -> Params {
-        Params::new(8, 2, 2, 12).expect("test parameters are valid")
+        Params::new(8, 2, 2, 12).expect("valid parameters")
     }
 
     fn claims() -> Claims {
@@ -212,60 +209,166 @@ mod tests {
         Counter::from(u128::from(time) << 64)
     }
 
-    #[test]
-    fn new_applies_ttl() {
-        let params = params();
+    /// A TraverseV instance built for a given challenge.
+    fn instance(challenge: &Challenge) -> TraverseV {
+        let secret = derive_secret(&challenge.id(), challenge.nonce());
+        TraverseV::new_permissioned(&secret, CONTEXT, challenge.params())
+    }
 
-        let before = unix_now() + TTL;
-        let verifier = Verifier::new(CONTEXT, NONCE, TTL, params);
-        let after = unix_now() + TTL;
+    /// A nonce value satisfying the given challenge's difficulty.
+    fn valid_nonce(challenge: &Challenge, claims: &Claims) -> Counter {
+        let input = claims.to_bytes().unwrap();
+        instance(challenge).mine(&input, Counter::default(), 1u64)
+    }
 
-        assert!((before..=after).contains(&verifier.expires_at));
+    /// A nonce value that does not satisfy the given challenge's difficulty.
+    fn invalid_nonce(challenge: &Challenge, claims: &Claims) -> Counter {
+        let input = claims.to_bytes().unwrap();
+        let instance = instance(challenge);
+
+        let mut nonce = Counter::default();
+        while instance.verify(&input, nonce) {
+            nonce += 1;
+        }
+        nonce
     }
 
     #[test]
-    fn to_challenge_carries_fields() {
-        let params = params();
-        let verifier = Verifier::new(CONTEXT, NONCE, TTL, params);
-        let challenge = verifier.to_challenge();
+    fn issue_issues_challenge() {
+        let verifier = Verifier::new(CONTEXT, &KEY, TTL, params());
 
-        assert_eq!(challenge.id(), verifier.id());
-        assert_eq!(challenge.expires_at(), verifier.expires_at());
-        assert_eq!(challenge.nonce(), verifier.nonce());
-        assert_eq!(challenge.params(), verifier.params());
+        let before = unix_now() + TTL;
+        let challenge = verifier.issue(NONCE);
+        let after = unix_now() + TTL;
+
+        assert!((before..=after).contains(&challenge.expires_at()));
+    }
+
+    #[test]
+    fn verify_verifies_proof() {
+        let verifier = Verifier::new(CONTEXT, &KEY, TTL, params());
+        let claims = claims();
+
+        let challenge = verifier.issue(NONCE);
+        let nonce = valid_nonce(&challenge, &claims);
+        let proof = Proof::new(&challenge, &claims, nonce);
+
+        let result = verifier.verify(&proof, &ReplayStore::new());
+        assert!(result.is_ok());
     }
 
     #[test]
     fn verify_rejects_wrong_challenge() {
         let params = params();
-        let verifier = Verifier::new(CONTEXT, NONCE, TTL, params);
+        let verifier = Verifier::new(CONTEXT, &KEY, TTL, params);
 
-        let id = Ulid::generate();
-        let claims = claims();
-        let nonce = counter_at(unix_now());
-        let proof = Proof::new(id, &claims, nonce);
+        // Challenge not issued by this Verifier
+        let challenge = Challenge::new(
+            Ulid::generate(),
+            unix_now() + TTL,
+            NONCE,
+            params,
+            [0u8; 16],
+        );
+        let proof = Proof::new(&challenge, &claims(), counter_at(unix_now()));
 
-        let result = verifier.verify(&proof);
+        let result = verifier.verify(&proof, &ReplayStore::new());
         assert!(matches!(result.err(), Some(Error::WrongChallenge)));
     }
 
     #[test]
-    fn verify_rejects_after_expiry() {
+    fn verify_rejects_expired_challenge() {
         let params = params();
-        let mut verifier = Verifier::new(CONTEXT, NONCE, TTL, params);
+        let verifier = Verifier::new(CONTEXT, &KEY, TTL, params);
+        let store = ReplayStore::new();
 
         // The verifier's clock is within the TTL, only the nonce time rejects
-        let nonce = counter_at(verifier.expires_at() + 1);
-        let proof = Proof::new(verifier.id(), &claims(), nonce);
-        let result = verifier.verify(&proof);
+        let challenge = verifier.issue(NONCE);
+        let nonce = counter_at(challenge.expires_at() + 1);
+        let proof = Proof::new(&challenge, &claims(), nonce);
+        let result = verifier.verify(&proof, &store);
         assert!(matches!(result.err(), Some(Error::Expired)));
 
         // The nonce time is within the TTL, only the verifier's clock rejects
-        verifier.expires_at = unix_now() - 1;
-        let nonce = counter_at(verifier.expires_at());
-        let proof = Proof::new(verifier.id(), &claims(), nonce);
-        let result = verifier.verify(&proof);
+        let id = Ulid::generate();
+        let expires_at = unix_now() - 1;
+        let tag = auth_tag(&KEY, id, expires_at, NONCE, params);
+        let challenge = Challenge::new(id, expires_at, NONCE, params, tag);
+        let proof = Proof::new(&challenge, &claims(), counter_at(expires_at));
+        let result = verifier.verify(&proof, &store);
         assert!(matches!(result.err(), Some(Error::Expired)));
     }
+
+    #[test]
+    fn verify_rejects_replayed_challenge() {
+        let verifier = Verifier::new(CONTEXT, &KEY, TTL, params());
+        let store = ReplayStore::new();
+
+        let challenge = verifier.issue(NONCE);
+        let proof = Proof::new(&challenge, &claims(), counter_at(unix_now()));
+
+        let original = verifier.verify(&proof, &store);
+        assert!(original.is_ok());
+
+        let replayed = verifier.verify(&proof, &store);
+        assert!(matches!(replayed.err(), Some(PbcpError::Replayed)));
+    }
+
+    #[test]
+    fn verify_propagates_store_failure() {
+        let verifier = Verifier::new(CONTEXT, &KEY, TTL, params());
+        let store = ReplayStore::from_fn(|_, _| Err("unavailable".into()));
+
+        let challenge = verifier.issue(NONCE);
+        let proof = Proof::new(&challenge, &claims(), counter_at(unix_now()));
+
+        let result = verifier.verify(&proof, &store);
+        assert!(matches!(result.err(), Some(Error::StoreFail(_))));
+    }
+
+    #[test]
+    fn judge_reports_outcome() {
+        let verifier = Verifier::new(CONTEXT, &KEY, TTL, params());
+        let store = ReplayStore::new();
+        let claims = claims();
+
+        let challenge = verifier.issue(NONCE);
+        let id = challenge.id();
+        let nonce = valid_nonce(&challenge, &claims);
+        let proof = Proof::new(&challenge, &claims, nonce);
+
+        let accepted = verifier.judge(&proof, &store);
+        assert_eq!(accepted, Outcome::Accepted(id));
+
+        // Trigger rejection and replay with invalid nonce
+        let store = ReplayStore::new();
+        let nonce = invalid_nonce(&challenge, &claims);
+        let proof = Proof::new(&challenge, &claims, nonce);
+
+        let rejected = verifier.judge(&proof, &store);
+        assert_eq!(rejected, Outcome::Rejected(id));
+
+        let replayed = verifier.judge(&proof, &store);
+        assert_eq!(replayed, Outcome::Replayed(id));
+    }
+
+    #[test]
+    fn accessors_return_their_own_field() {
+        let params = params();
+        let verifier = Verifier::new(CONTEXT, &KEY, TTL, params);
+
+        assert_eq!(verifier.ttl(), TTL);
+        assert_eq!(verifier.params(), params);
+    }
+
+    #[test]
+    fn debug_shows_ttl_and_params() {
+        let params = params();
+        let verifier = Verifier::new(CONTEXT, &KEY, TTL, params);
+
+        assert_eq!(
+            format!("{verifier:?}"),
+            format!("Verifier {{ ttl: {TTL}, params: {params:?}, .. }}")
+        );
+    }
 }
-*/

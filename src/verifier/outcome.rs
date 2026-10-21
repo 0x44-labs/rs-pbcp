@@ -121,3 +121,75 @@ struct OutcomeWire {
 }
 
 impl Wire for OutcomeWire {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn from_error_maps_errors() {
+        let id = Ulid::generate();
+
+        // Expired, Replayed, and WrongChallenge have explicit mappings
+        assert_eq!(
+            Outcome::from_error(id, PbcpError::Expired),
+            Outcome::Expired(id)
+        );
+        assert_eq!(
+            Outcome::from_error(id, PbcpError::Replayed),
+            Outcome::Replayed(id)
+        );
+        assert_eq!(
+            Outcome::from_error(id, PbcpError::WrongChallenge),
+            Outcome::WrongChallenge(id)
+        );
+
+        // All other errors are Malformed outcomes
+        assert_eq!(
+            Outcome::from_error(id, PbcpError::InvalidHost),
+            Outcome::Malformed(id)
+        );
+    }
+
+    #[test]
+    fn uri_round_trip() {
+        let id = Ulid::generate();
+
+        for original in [
+            Outcome::Accepted(id),
+            Outcome::Expired(id),
+            Outcome::Malformed(id),
+            Outcome::Rejected(id),
+            Outcome::Replayed(id),
+            Outcome::WrongChallenge(id),
+        ] {
+            let uri =
+                original.to_uri().expect("valid Outcome serialises to URI");
+
+            let reconstructed =
+                Outcome::from_uri(&uri).expect("valid URI parses to Outcome");
+            assert_eq!(original, reconstructed);
+        }
+    }
+
+    #[test]
+    fn id_returns_challenge_id() {
+        let id = Ulid::generate();
+        let outcome = Outcome::Accepted(id);
+
+        assert_eq!(outcome.id(), id);
+    }
+
+    #[test]
+    fn is_accepted_only_for_accepted() {
+        let id = Ulid::generate();
+
+        // Accepted outcome returns true
+        let accepted = Outcome::Accepted(id);
+        assert!(accepted.is_accepted());
+
+        // Rejected outcome returns false
+        let rejected = Outcome::Rejected(id);
+        assert!(!rejected.is_accepted());
+    }
+}

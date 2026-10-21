@@ -99,7 +99,7 @@ mod tests {
     }
 
     #[test]
-    fn accessor_returns_own_field() {
+    fn challenge_returns_challenge() {
         let challenge = challenge();
         let prover = Prover::new(CONTEXT, &challenge);
 

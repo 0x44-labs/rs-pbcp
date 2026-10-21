@@ -168,7 +168,6 @@ impl From<&Challenge> for ChallengeWire {
     }
 }
 
-/*
 #[cfg(test)]
 mod tests {
     use base64::Engine;
@@ -183,15 +182,22 @@ mod tests {
     const NONCE: &[u8] = b"This is a challenge nonce";
 
     fn challenge(id: Ulid, params: Params) -> Challenge {
-        Challenge::new(id, TIME + TTL, NONCE, params)
+        Challenge::new(
+            id,
+            TIME + 300,
+            b"This is a challenge nonce",
+            params,
+            [0u8; 16],
+        )
     }
 
     fn challenge_query() -> String {
         format!(
-            "id={}&expires_at={}&nonce={}",
+            "id={}&expires_at={}&nonce={}&auth_tag={}",
             Ulid::generate(),
             TIME + TTL,
-            URL_SAFE_NO_PAD.encode(NONCE)
+            URL_SAFE_NO_PAD.encode(NONCE),
+            URL_SAFE_NO_PAD.encode([0u8; 16])
         )
     }
 
@@ -205,7 +211,7 @@ mod tests {
     fn uri_round_trip() {
         let default_params = Params::default();
         let custom_params = Params::new(16 * 1024, 2, 4, 12)
-            .expect("valid set of TraverseV params");
+            .expect("valid parameters for TraverseV");
 
         for params in [default_params, custom_params] {
             let original = challenge(Ulid::generate(), params);
@@ -217,18 +223,6 @@ mod tests {
                 .expect("valid URI parses to Challenge");
             assert_eq!(original, reconstructed);
         }
-    }
-
-    #[test]
-    fn accessors_return_their_own_field() {
-        let id = Ulid::generate();
-        let params = Params::default();
-        let challenge = challenge(id, params);
-
-        assert_eq!(challenge.id(), id);
-        assert_eq!(challenge.expires_at(), TIME + TTL);
-        assert_eq!(challenge.nonce(), &NONCE.to_vec());
-        assert_eq!(challenge.params(), params);
     }
 
     #[test]
@@ -247,32 +241,29 @@ mod tests {
     }
 
     #[test]
-    fn path_and_query_layout() {
+    fn cbor_bytes_round_trip() {
+        let params = Params::new(8, 2, 2, 12).expect("valid parameters");
+
+        let original = challenge(Ulid::generate(), params);
+        let bytes = original
+            .to_bytes()
+            .expect("valid Challenge serialises to CBOR bytes");
+
+        let reconstructed = Challenge::from_bytes(&bytes)
+            .expect("valid CBOR bytes parse to Challenge");
+        assert_eq!(original, reconstructed);
+    }
+
+    #[test]
+    fn accessors_return_their_own_field() {
         let id = Ulid::generate();
-        let expires_at = TIME + 300;
-        let nonce = b"This is a challenge nonce".to_vec();
+        let params = Params::default();
+        let challenge = challenge(id, params);
 
-        let expected = format!(
-            "/?id={}&expires_at={}&nonce={}",
-            id,
-            expires_at,
-            URL_SAFE_NO_PAD.encode(&nonce)
-        );
-
-        let wire = ChallengeWire {
-            id,
-            expires_at,
-            nonce,
-            m_cost: None,
-            t_cost: None,
-            e_cost: None,
-            n_cost: None,
-        };
-        let p_and_q = wire
-            .path_and_query()
-            .expect("valid wire builds path and query");
-
-        assert_eq!(p_and_q.as_str(), expected);
+        assert_eq!(challenge.id(), id);
+        assert_eq!(challenge.expires_at(), TIME + TTL);
+        assert_eq!(challenge.nonce(), &NONCE.to_vec());
+        assert_eq!(challenge.params(), params);
+        assert_eq!(challenge.auth_tag(), [0u8; 16]);
     }
 }
-*/

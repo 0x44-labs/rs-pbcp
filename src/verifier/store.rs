@@ -149,3 +149,95 @@ impl Default for Memory {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    };
+
+    use super::*;
+
+    const TTL: u64 = 300;
+    const MARGIN: u64 = 5;
+
+    #[test]
+    fn from_fn_returns_backend_result() {
+        let id = Ulid::generate();
+
+        let inserted = ReplayStore::from_fn(|_, _| Ok(true));
+        let result = inserted.check_and_insert(id, unix_now() + TTL);
+        assert!(result.is_ok());
+        assert!(result.expect("result is Ok"));
+
+        let present = ReplayStore::from_fn(|_, _| Ok(false));
+        let result = present.check_and_insert(id, unix_now() + TTL);
+        assert!(result.is_ok());
+        assert!(!result.expect("result is Ok"));
+    }
+
+    #[test]
+    fn margin_extends_retention_deadline() {
+        let deadline = Arc::new(AtomicU64::new(0));
+        let seen = Arc::clone(&deadline);
+        let store = ReplayStore::from_fn(move |_, retain_until| {
+            seen.store(retain_until, Ordering::SeqCst);
+            Ok(true)
+        })
+        .with_margin(MARGIN);
+        let id = Ulid::generate();
+
+        let expires_at = unix_now() + TTL;
+
+        store.check_and_insert(id, expires_at).unwrap();
+        assert_eq!(deadline.load(Ordering::SeqCst), expires_at + MARGIN);
+
+        // Saturates instead of overflowing
+        store.check_and_insert(id, u64::MAX).unwrap();
+        assert_eq!(deadline.load(Ordering::SeqCst), u64::MAX);
+    }
+
+    #[test]
+    fn check_and_insert_detects_replay() {
+        let store = ReplayStore::new();
+        let expires_at = unix_now() + TTL;
+        let id = Ulid::generate();
+
+        let original = store.check_and_insert(id, expires_at);
+        assert!(original.is_ok());
+        assert!(original.expect("result is Ok"));
+
+        let replayed = store.check_and_insert(id, expires_at);
+        assert!(replayed.is_ok());
+        assert!(!replayed.expect("result is Ok"));
+    }
+
+    #[test]
+    fn default_memory_without_margin() {
+        let store = ReplayStore::default();
+        assert!(matches!(store.storage, Storage::Memory(_)));
+        assert_eq!(store.margin, 0);
+    }
+
+    #[test]
+    fn debug_shows_margin() {
+        let store = ReplayStore::new().with_margin(MARGIN);
+        assert_eq!(
+            format!("{store:?}"),
+            format!("ReplayStore {{ margin: {MARGIN}, .. }}")
+        );
+    }
+
+    #[test]
+    fn memory_evicts_after_deadline() {
+        let mut memory = Memory::default();
+        let id = Ulid::generate();
+
+        assert!(memory.check_and_insert(id, 100, 0));
+        // Still retained at the deadline itself
+        assert!(!memory.check_and_insert(id, 100, 100));
+        // Evicted once the deadline has passed
+        assert!(memory.check_and_insert(id, 100, 101));
+    }
+}
