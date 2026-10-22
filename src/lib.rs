@@ -43,7 +43,7 @@
 //!
 //!     // Resubmitting the proof rejects for challenge replay
 //!     let outcome = verifier.judge(&proof, &store);
-//!     assert_eq!(outcome, Outcome::Replayed(proof.challenge().id()));
+//!     assert_eq!(outcome, Outcome::Replayed);
 //! }
 //! ```
 //! ## Features

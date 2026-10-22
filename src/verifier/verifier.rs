@@ -126,12 +126,10 @@ impl Verifier {
 
     /// Verify a [Proof] and report the result as an [Outcome].
     pub fn judge(&self, proof: &Proof, store: &ReplayStore) -> Outcome {
-        let id = proof.challenge().id();
-
         match self.verify(proof, store) {
-            Ok(true) => Outcome::Accepted(id),
-            Ok(false) => Outcome::Rejected(id),
-            Err(e) => Outcome::from_error(id, e),
+            Ok(true) => Outcome::Accepted,
+            Ok(false) => Outcome::Rejected,
+            Err(e) => Outcome::from_error(e),
         }
     }
 
@@ -364,12 +362,11 @@ mod tests {
         let claims = claims();
 
         let challenge = verifier.issue(NONCE);
-        let id = challenge.id();
         let nonce = valid_nonce(&challenge, &claims);
         let proof = Proof::new(&challenge, &claims, nonce);
 
         let accepted = verifier.judge(&proof, &store);
-        assert_eq!(accepted, Outcome::Accepted(id));
+        assert_eq!(accepted, Outcome::Accepted);
 
         // Trigger rejection and replay with invalid nonce
         let store = ReplayStore::new();
@@ -377,10 +374,10 @@ mod tests {
         let proof = Proof::new(&challenge, &claims, nonce);
 
         let rejected = verifier.judge(&proof, &store);
-        assert_eq!(rejected, Outcome::Rejected(id));
+        assert_eq!(rejected, Outcome::Rejected);
 
         let replayed = verifier.judge(&proof, &store);
-        assert_eq!(replayed, Outcome::Replayed(id));
+        assert_eq!(replayed, Outcome::Replayed);
     }
 
     #[test]
