@@ -37,12 +37,16 @@ impl Verifier {
     }
 
     /// Issue a [Challenge] over the given nonce.
-    pub fn issue(&self, nonce: &[u8]) -> Challenge {
+    pub fn issue(&self, nonce: &[u8]) -> Result<Challenge, PbcpError> {
+        if nonce.len() > 64 {
+            return Err(PbcpError::ChallengeNonce);
+        }
+
         let id = Ulid::generate();
         let expires_at = unix_now().saturating_add(self.ttl);
 
         let tag = auth_tag(&self.key, id, expires_at, nonce, self.params);
-        Challenge::new(id, expires_at, nonce, self.params, tag)
+        Ok(Challenge::new(id, expires_at, nonce, self.params, tag))
     }
 
     /// Verify a [Proof] against this verifier's challenge, returning
@@ -246,7 +250,7 @@ mod tests {
         let verifier = Verifier::new(CONTEXT, &KEY, TTL, params());
 
         let before = unix_now() + TTL;
-        let challenge = verifier.issue(NONCE);
+        let challenge = verifier.issue(NONCE).expect("nonce below 64 bytes");
         let after = unix_now() + TTL;
 
         assert!((before..=after).contains(&challenge.expires_at()));
@@ -257,7 +261,7 @@ mod tests {
         let verifier = Verifier::new(CONTEXT, &KEY, TTL, params());
         let claims = claims();
 
-        let challenge = verifier.issue(NONCE);
+        let challenge = verifier.issue(NONCE).expect("nonce below 64 bytes");
         let nonce = nonce(&challenge, &claims);
         let proof = Proof::new(&challenge, &claims, nonce);
 
@@ -291,7 +295,7 @@ mod tests {
         let store = ReplayStore::new();
 
         // The verifier's clock is within the TTL, only the nonce time rejects
-        let challenge = verifier.issue(NONCE);
+        let challenge = verifier.issue(NONCE).expect("nonce below 64 bytes");
         let nonce = counter_at(challenge.expires_at() + 1);
         let proof = Proof::new(&challenge, &claims(), nonce);
         let result = verifier.verify(&proof, &store);
@@ -312,7 +316,7 @@ mod tests {
         let verifier = Verifier::new(CONTEXT, &KEY, TTL, params());
         let store = ReplayStore::new();
 
-        let challenge = verifier.issue(NONCE);
+        let challenge = verifier.issue(NONCE).expect("nonce below 64 bytes");
         let proof = Proof::new(&challenge, &claims(), counter_at(unix_now()));
 
         let original = verifier.verify(&proof, &store);
@@ -327,7 +331,7 @@ mod tests {
         let verifier = Verifier::new(CONTEXT, &KEY, TTL, params());
         let store = ReplayStore::from_fn(|_, _| Err("unavailable".into()));
 
-        let challenge = verifier.issue(NONCE);
+        let challenge = verifier.issue(NONCE).expect("nonce below 64 bytes");
         let proof = Proof::new(&challenge, &claims(), counter_at(unix_now()));
 
         let result = verifier.verify(&proof, &store);

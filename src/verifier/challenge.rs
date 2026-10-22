@@ -131,7 +131,7 @@ impl TryFrom<ChallengeWire> for Challenge {
             .auth_tag
             .clone()
             .try_into()
-            .map_err(|_| Self::Error::TagLen)?;
+            .map_err(|_| Self::Error::AuthTag)?;
 
         Ok(Challenge {
             id: value.id,

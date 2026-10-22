@@ -16,7 +16,8 @@
 //!
 //!     let challenge = pbcp
 //!         .verifier(&key, ttl)
-//!         .issue(b"This is a challenge nonce".as_ref());
+//!         .issue(b"This is a challenge nonce".as_ref())
+//!         .expect("nonce below 64 bytes");
 //!
 //!     // Build JWT-style claims
 //!     let claims = Claims::builder()
@@ -163,7 +164,7 @@ mod tests {
         let verifier = pbcp.verifier(&KEY, TTL);
 
         let prover = pbcp
-            .prover(&verifier.issue(NONCE))
+            .prover(&verifier.issue(NONCE).expect("nonce below 64 bytes"))
             .expect("challenge is within limits");
         assert_eq!(prover.challenge().nonce(), NONCE);
     }
@@ -176,7 +177,7 @@ mod tests {
         let store = ReplayStore::new();
 
         let prover = pbcp
-            .prover(&verifier.issue(NONCE))
+            .prover(&verifier.issue(NONCE).expect("nonce below 64 bytes"))
             .expect("challenge is within limits");
 
         let claims = claims();
@@ -194,7 +195,10 @@ mod tests {
     #[test]
     fn prover_accepts_challenge_at_limits() {
         let pbcp = Pbcp::new(CONTEXT, params());
-        let challenge = pbcp.verifier(&KEY, TTL).issue(NONCE);
+        let challenge = pbcp
+            .verifier(&KEY, TTL)
+            .issue(NONCE)
+            .expect("nonce below 64 bytes");
 
         let result = pbcp.prover(&challenge);
         assert!(result.is_ok());

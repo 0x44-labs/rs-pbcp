@@ -88,7 +88,7 @@ impl TryFrom<ProofWire> for Proof {
             .nonce
             .as_slice()
             .try_into()
-            .map_err(|_| PbcpError::NonceLen)?;
+            .map_err(|_| PbcpError::ProofNonce)?;
         let counter = Counter::from_le_bytes(&nonce);
 
         #[cfg(feature = "zeroize")]

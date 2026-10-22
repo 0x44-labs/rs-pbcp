@@ -3,40 +3,43 @@ use crate::verifier::BackendError;
 /// Errors returned by PBCP.
 #[derive(Debug)]
 pub enum PbcpError {
-    /// Could not CBOR deserialise data.
+    /// Expected exactly 16 bytes length.
+    AuthTag,
+
+    /// CBOR deserialisation failed.
     CborDe(ciborium::de::Error<std::io::Error>),
 
-    /// Could not CBOR serialise data.
+    /// CBOR serialisation failed.
     CborSer(ciborium::ser::Error<std::io::Error>),
 
-    /// Challenge has expired.
+    /// Cannot exceed 64 bytes length.
+    ChallengeNonce,
+
+    /// Challenge expired.
     Expired,
 
-    /// Message could not be JSON serialised/deserialised.
+    /// JSON serialisation/deserialisation failed.
     Json(serde_json::Error),
 
-    /// Proof nonce expects 16 bytes.
-    NonceLen,
-
-    /// Invalid parameters for TraverseV.
+    /// Invalid TraverseV parameters.
     Params(traversev::TraverseVErr),
 
-    /// Unable to construct path and query.
+    /// Cannot construct path and query.
     PathAndQuery(http::uri::InvalidUri),
 
-    /// Could not serialise/deserialise querystring.
+    /// Expected exactly 16 bytes length.
+    ProofNonce,
+
+    /// Querystring serialisation/deserialisation failed.
     QueryString(serde_qs::Error),
 
-    /// Proof already submitted for this challenge.
+    /// Proof already submitted for challenge.
     Replayed,
 
-    /// Replay store operation failed.
+    /// Replay store external backend operation failed.
     StoreFail(BackendError),
 
-    /// Authentication tag expects 16 bytes.
-    TagLen,
-
-    /// Challenge exceeded the configured costs.
+    /// Challenge exceeded configured costs.
     TooCostly,
 
     /// Failed to build URI.
@@ -52,18 +55,19 @@ pub enum PbcpError {
 impl std::fmt::Display for PbcpError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let msg = match self {
+            Self::AuthTag => "expected exactly 16 bytes length",
             Self::CborDe(e) => return core::fmt::Display::fmt(e, f),
             Self::CborSer(e) => return core::fmt::Display::fmt(e, f),
-            Self::Expired => "challenge has expired",
+            Self::ChallengeNonce => "cannot exceed 64 bytes length",
+            Self::Expired => "challenge expired",
             Self::Json(e) => return core::fmt::Display::fmt(e, f),
-            Self::NonceLen => "proof nonce expects 16 bytes",
             Self::Params(e) => return core::fmt::Display::fmt(e, f),
             Self::PathAndQuery(e) => return core::fmt::Display::fmt(e, f),
+            Self::ProofNonce => "expected exactly 16 bytes length",
             Self::QueryString(e) => return core::fmt::Display::fmt(e, f),
-            Self::Replayed => "proof already submitted for this challenge",
+            Self::Replayed => "proof already submitted for challenge",
             Self::StoreFail(e) => return core::fmt::Display::fmt(e, f),
-            Self::TagLen => "auth tag expects 16 bytes",
-            Self::TooCostly => "challenge exceeded the configured costs",
+            Self::TooCostly => "challenge exceeded configured costs",
             Self::UriBuilder(e) => return core::fmt::Display::fmt(e, f),
             Self::UriParse => "parsed uri invalid for pbcp",
             Self::WrongChallenge => "proof submitted to wrong challenge",
@@ -145,18 +149,19 @@ mod tests {
     /// Expected [Display](core::fmt::Display) output.
     fn expected_display(err: &PbcpError) -> &'static str {
         match err {
+            PbcpError::AuthTag => "expected exactly 16 bytes length",
             PbcpError::CborDe(e) => e.to_string().leak(),
             PbcpError::CborSer(e) => e.to_string().leak(),
-            PbcpError::Expired => "challenge has expired",
+            PbcpError::ChallengeNonce => "cannot exceed 64 bytes length",
+            PbcpError::Expired => "challenge expired",
             PbcpError::Json(e) => e.to_string().leak(),
-            PbcpError::NonceLen => "proof nonce expects 16 bytes",
             PbcpError::Params(e) => e.to_string().leak(),
             PbcpError::PathAndQuery(e) => e.to_string().leak(),
+            PbcpError::ProofNonce => "expected exactly 16 bytes length",
             PbcpError::QueryString(e) => e.to_string().leak(),
-            PbcpError::Replayed => "proof already submitted for this challenge",
+            PbcpError::Replayed => "proof already submitted for challenge",
             PbcpError::StoreFail(e) => e.to_string().leak(),
-            PbcpError::TagLen => "auth tag expects 16 bytes",
-            PbcpError::TooCostly => "challenge exceeded the configured costs",
+            PbcpError::TooCostly => "challenge exceeded configured costs",
             PbcpError::UriBuilder(e) => e.to_string().leak(),
             PbcpError::UriParse => "parsed uri invalid for pbcp",
             PbcpError::WrongChallenge => "proof submitted to wrong challenge",
@@ -210,17 +215,18 @@ mod tests {
 
     fn all_variants() -> Vec<(PbcpError, &'static str)> {
         vec![
+            (PbcpError::AuthTag, "AuthTag"),
             (cbor_de(), "CborDe"),
             (cbor_ser(), "CborSer"),
+            (PbcpError::ChallengeNonce, "ChallengeNonce"),
             (PbcpError::Expired, "Expired"),
             (json(), "Json"),
-            (PbcpError::NonceLen, "NonceLen"),
             (params(), "Params"),
             (path_and_query(), "PathAndQuery"),
+            (PbcpError::ProofNonce, "ProofNonce"),
             (query_string(), "QueryString"),
             (PbcpError::Replayed, "Replayed"),
             (store_fail(), "StoreFail"),
-            (PbcpError::TagLen, "TagLen"),
             (PbcpError::TooCostly, "TooCostly"),
             (uri_builder(), "UriBuilder"),
             (PbcpError::UriParse, "UriParse"),
@@ -285,9 +291,6 @@ mod tests {
             Err(PbcpError::Replayed)?
         }
         let boxed = fallible().unwrap_err();
-        assert_eq!(
-            boxed.to_string(),
-            "proof already submitted for this challenge"
-        );
+        assert_eq!(boxed.to_string(), "proof already submitted for challenge");
     }
 }
