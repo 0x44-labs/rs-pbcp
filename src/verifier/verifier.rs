@@ -10,8 +10,10 @@ use crate::errors::PbcpError;
 use crate::prover::Proof;
 use crate::verifier::{Challenge, Outcome, ReplayStore};
 
-/// Verifier for [Pbcp], capable of issuing [Challenges](Challenge) and
-/// evaluating any received [Proof] for authenticity.
+/// Proof-Bound Claims Protocol (PBCP) Verifier.
+///
+/// Capable of issuing [Challenges](Challenge) and evaluating any received
+/// [Proof] for authenticity.
 pub struct Verifier {
     context: String,
     key: [u8; 32],

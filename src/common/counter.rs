@@ -6,8 +6,10 @@ use zeroize::Zeroize;
 
 use crate::common::unix_now;
 
-/// A `u128` value packing a count in the low 64 bits with a Unix timestamp
-/// (in seconds) in the high 64 bits.
+/// A `u128` counter valaue.
+///
+/// Holds a count in the low 64 bits and a Unix timestamp (in seconds) in the
+/// high 64 bits.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Counter(u128);
 

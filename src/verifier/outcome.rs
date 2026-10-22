@@ -5,8 +5,9 @@ use ulid::Ulid;
 use crate::common::{URI_SCHEME, Wire, host_query};
 use crate::errors::PbcpError;
 
-/// The verifier's verdict on a submitted proof. Only
-/// [Accepted](Outcome::Accepted) indicates success.
+/// A verifier's verdict on a submitted proof.
+///
+/// Only [Accepted](Outcome::Accepted) indicates success.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Outcome {
     /// The proof is valid.
@@ -83,7 +84,7 @@ impl Outcome {
         }
     }
 
-    /// Returns `true` only for [Accepted](OutcomeKind::Accepted) outcomes.
+    /// Returns `true` only for [Accepted](Outcome::Accepted) outcomes.
     pub const fn is_accepted(&self) -> bool {
         matches!(self, Self::Accepted(_))
     }

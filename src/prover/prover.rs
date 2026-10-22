@@ -7,8 +7,9 @@ use crate::errors::PbcpError;
 use crate::prover::Proof;
 use crate::verifier::Challenge;
 
-/// Prover for [Pbcp], capable of mining a proof over [Claims] for a received
-/// challenge.
+/// Proof-Bound Claims Protocol (PBCP) Prover.
+///
+/// Capable of mining a proof over [Claims] for a received challenge.
 #[derive(Debug)]
 pub struct Prover {
     challenge: Challenge,

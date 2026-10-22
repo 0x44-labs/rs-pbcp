@@ -62,7 +62,7 @@ pub use crate::verifier::{Challenge, Outcome, ReplayStore, Verifier};
 /// Alias for TraverseV proof-of-work parameters.
 pub type TvParams = traversev::Params;
 
-/// Proof-Bound Claims Protocol (PBCP) context.
+/// Proof-Bound Claims Protocol (PBCP) Context.
 ///
 /// This is the primary type of this crate's API, and creates the two roles of
 /// a PBCP exchange: [Verifier] and [Prover]. It contains the following:

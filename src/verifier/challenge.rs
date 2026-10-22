@@ -7,9 +7,10 @@ use ulid::Ulid;
 use crate::common::{URI_SCHEME, Wire, b64url_vec, host_query, non_default};
 use crate::errors::PbcpError;
 
-/// A `Challenge` represents a challenge identifier, time of expiration (in
-/// seconds), nonce value, and TraverseV parameters, and an authentication tag
-/// over them.
+/// A [verifier](crate::verifier::Verifier)-issued challenge.
+///
+/// Carries a unique identifier, expiration, nonce value, and parameters, all
+/// bound to the issuer by an authentication tag.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Challenge {
     id: Ulid,

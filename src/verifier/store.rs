@@ -6,7 +6,7 @@ use ulid::Ulid;
 
 use crate::{PbcpError, common::unix_now};
 
-/// Registry of challenges by identifier that have already been used.
+/// Storage recording used challenges to prevent replay.
 pub struct ReplayStore {
     storage: Storage,
     margin: u64,

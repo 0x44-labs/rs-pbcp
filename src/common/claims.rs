@@ -8,8 +8,9 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::errors::PbcpError;
 
-/// A JWT-style `Claims` set, representing a JSON object whose members are the
-/// claims.
+/// JWT-style claims set.
+///
+/// Represents a JSON object whose members are the claims.
 ///
 /// <https://www.rfc-editor.org/info/rfc7519/#section-4>
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -68,7 +69,7 @@ impl Drop for Claims {
 #[cfg(feature = "zeroize")]
 impl ZeroizeOnDrop for Claims {}
 
-/// A builder for [Claims].
+/// Builder for [Claims].
 #[derive(Debug, Clone)]
 pub struct ClaimsBuilder(BTreeMap<String, Value>);
 

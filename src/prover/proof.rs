@@ -11,8 +11,10 @@ use crate::common::{
 use crate::errors::PbcpError;
 use crate::verifier::{Challenge, ChallengeWire};
 
-/// A `Proof` represents some [Claims] and the mined nonce that proves them,
-/// bound to the [Challenge] it responds to.
+/// Response to a [Challenge].
+///
+/// Holds some [Claims] and the mined nonce value proving them, with the
+/// challenge they respond to.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Proof {
     challenge: Challenge,
