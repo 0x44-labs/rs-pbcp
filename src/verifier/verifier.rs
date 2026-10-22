@@ -8,7 +8,7 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 use crate::common::{derive_secret, unix_now};
 use crate::errors::PbcpError;
 use crate::prover::Proof;
-use crate::verifier::{Challenge, Outcome, ReplayStore};
+use crate::verifier::{Challenge, ReplayStore};
 
 /// Proof-Bound Claims Protocol (PBCP) Verifier.
 ///
@@ -124,15 +124,6 @@ impl Verifier {
         Ok(valid)
     }
 
-    /// Verify a [Proof] and report the result as an [Outcome].
-    pub fn judge(&self, proof: &Proof, store: &ReplayStore) -> Outcome {
-        match self.verify(proof, store) {
-            Ok(true) => Outcome::Accepted,
-            Ok(false) => Outcome::Rejected,
-            Err(e) => Outcome::from_error(e),
-        }
-    }
-
     /// Returns the TTL applied to issued challenges, in seconds.
     pub const fn ttl(&self) -> u64 {
         self.ttl
@@ -245,21 +236,9 @@ mod tests {
     }
 
     /// A nonce value satisfying the given challenge's difficulty.
-    fn valid_nonce(challenge: &Challenge, claims: &Claims) -> Counter {
+    fn nonce(challenge: &Challenge, claims: &Claims) -> Counter {
         let input = claims.to_bytes().unwrap();
         instance(challenge).mine(&input, Counter::default(), 1u64)
-    }
-
-    /// A nonce value that does not satisfy the given challenge's difficulty.
-    fn invalid_nonce(challenge: &Challenge, claims: &Claims) -> Counter {
-        let input = claims.to_bytes().unwrap();
-        let instance = instance(challenge);
-
-        let mut nonce = Counter::default();
-        while instance.verify(&input, nonce) {
-            nonce += 1;
-        }
-        nonce
     }
 
     #[test]
@@ -279,7 +258,7 @@ mod tests {
         let claims = claims();
 
         let challenge = verifier.issue(NONCE);
-        let nonce = valid_nonce(&challenge, &claims);
+        let nonce = nonce(&challenge, &claims);
         let proof = Proof::new(&challenge, &claims, nonce);
 
         let result = verifier.verify(&proof, &ReplayStore::new());
@@ -353,31 +332,6 @@ mod tests {
 
         let result = verifier.verify(&proof, &store);
         assert!(matches!(result.err(), Some(Error::StoreFail(_))));
-    }
-
-    #[test]
-    fn judge_reports_outcome() {
-        let verifier = Verifier::new(CONTEXT, &KEY, TTL, params());
-        let store = ReplayStore::new();
-        let claims = claims();
-
-        let challenge = verifier.issue(NONCE);
-        let nonce = valid_nonce(&challenge, &claims);
-        let proof = Proof::new(&challenge, &claims, nonce);
-
-        let accepted = verifier.judge(&proof, &store);
-        assert_eq!(accepted, Outcome::Accepted);
-
-        // Trigger rejection and replay with invalid nonce
-        let store = ReplayStore::new();
-        let nonce = invalid_nonce(&challenge, &claims);
-        let proof = Proof::new(&challenge, &claims, nonce);
-
-        let rejected = verifier.judge(&proof, &store);
-        assert_eq!(rejected, Outcome::Rejected);
-
-        let replayed = verifier.judge(&proof, &store);
-        assert_eq!(replayed, Outcome::Replayed);
     }
 
     #[test]

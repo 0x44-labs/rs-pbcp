@@ -3,7 +3,7 @@
 #![doc = include_str!("../README.md")]
 //! ## Example
 //! ```
-//! use pbcp::{Claims, Outcome, Pbcp, ReplayStore, TvParams};
+//! use pbcp::{Claims, Pbcp, PbcpError, ReplayStore, TvParams};
 //!
 //! fn main() {
 //!     // Create a new PBCP context
@@ -38,12 +38,14 @@
 //!     let store = ReplayStore::new();
 //!
 //!     // The proof is accepted for the challenge
-//!     let outcome = verifier.judge(&proof, &store);
-//!     assert!(outcome.is_accepted());
+//!     let result = verifier.verify(&proof, &store);
+//!     assert!(result.is_ok());
+//!     let valid = result.expect("result is Ok");
+//!     assert!(valid);
 //!
 //!     // Resubmitting the proof rejects for challenge replay
-//!     let outcome = verifier.judge(&proof, &store);
-//!     assert_eq!(outcome, Outcome::Replayed);
+//!     let result = verifier.verify(&proof, &store);
+//!     assert!(matches!(result.err(), Some(PbcpError::Replayed)));
 //! }
 //! ```
 //! ## Features
@@ -59,9 +61,7 @@ mod verifier;
 pub use crate::common::{Claims, ClaimsBuilder, Counter};
 pub use crate::errors::PbcpError;
 pub use crate::prover::{Proof, Prover};
-pub use crate::verifier::{
-    BackendError, Challenge, Outcome, ReplayStore, Verifier,
-};
+pub use crate::verifier::{BackendError, Challenge, ReplayStore, Verifier};
 
 /// Alias for TraverseV proof-of-work parameters.
 pub type TvParams = traversev::Params;
