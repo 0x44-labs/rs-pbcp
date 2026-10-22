@@ -21,7 +21,7 @@ impl Prover {
         let nonce = challenge.nonce();
         let params = challenge.params();
 
-        let mut secret = derive_secret(&challenge.id(), &nonce);
+        let mut secret = derive_secret(&challenge.id(), nonce);
         let tv = TraverseV::new_permissioned(&secret, context, params);
 
         #[cfg(feature = "zeroize")]

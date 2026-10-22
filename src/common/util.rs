@@ -26,7 +26,7 @@ pub(crate) fn host_query<'a>(
     }
     match uri.query() {
         Some(q) => Ok(q),
-        None => return Err(PbcpError::UriParse),
+        None => Err(PbcpError::UriParse),
     }
 }
 
@@ -41,7 +41,7 @@ pub(crate) fn derive_secret(id: &Ulid, nonce: &[u8]) -> [u8; 32] {
     let mut hasher = Hasher::new();
 
     hasher.update(&id.to_bytes());
-    hasher.update(&nonce);
+    hasher.update(nonce);
 
     let mut hash = hasher.finalize();
     let secret: [u8; 32] = hash.into();

@@ -1,6 +1,5 @@
 use http::Uri;
 use serde::{Deserialize, Serialize};
-use serde_qs;
 use traversev::Params;
 use ulid::Ulid;
 
@@ -114,7 +113,7 @@ impl TryFrom<ChallengeWire> for Challenge {
             value.e_cost.unwrap_or(traversev::Params::DEFAULT_E),
             value.n_cost.unwrap_or(traversev::Params::DEFAULT_N),
         )
-        .map_err(|e| Self::Error::Params(e))?;
+        .map_err(Self::Error::Params)?;
 
         let auth_tag: [u8; 16] = value
             .auth_tag

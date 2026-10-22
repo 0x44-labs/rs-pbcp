@@ -1,3 +1,5 @@
+use crate::verifier::BackendError;
+
 /// Errors returned by PBCP.
 #[derive(Debug)]
 pub enum PbcpError {
@@ -32,7 +34,7 @@ pub enum PbcpError {
     Replayed,
 
     /// Replay store operation failed.
-    StoreFail(Box<dyn std::error::Error + Send + Sync>),
+    StoreFail(BackendError),
 
     /// Authentication tag expects 16 bytes.
     TagLen,
@@ -126,8 +128,8 @@ impl From<serde_qs::Error> for PbcpError {
     }
 }
 
-impl From<Box<dyn std::error::Error + Send + Sync>> for PbcpError {
-    fn from(value: Box<dyn std::error::Error + Send + Sync>) -> Self {
+impl From<BackendError> for PbcpError {
+    fn from(value: BackendError) -> Self {
         Self::StoreFail(value)
     }
 }
@@ -199,8 +201,7 @@ mod tests {
     }
 
     fn store_fail() -> PbcpError {
-        let source: Box<dyn std::error::Error + Send + Sync> =
-            "backend unavailable".into();
+        let source: BackendError = "backend unavailable".into();
         source.into()
     }
 

@@ -192,7 +192,7 @@ fn auth_tag(
     ] {
         hasher.update(&cost.to_le_bytes());
     }
-    hasher.update(&nonce);
+    hasher.update(nonce);
 
     let mut reader = hasher.finalize_xof();
     let mut tag = [0u8; 16];

@@ -6,6 +6,9 @@ use ulid::Ulid;
 
 use crate::{PbcpError, common::unix_now};
 
+/// Error returned by an external [ReplayStore] backend.
+pub type BackendError = Box<dyn std::error::Error + Send + Sync>;
+
 /// Storage recording used challenges to prevent replay.
 pub struct ReplayStore {
     storage: Storage,
@@ -96,18 +99,11 @@ impl core::fmt::Debug for ReplayStore {
 enum Storage {
     Memory(Mutex<Memory>),
     External(
-        Box<
-            dyn Fn(
-                    Ulid,
-                    u64,
-                )
-                    -> Result<bool, Box<dyn std::error::Error + Send + Sync>>
-                + Send
-                + Sync,
-        >,
+        Box<dyn Fn(Ulid, u64) -> Result<bool, BackendError> + Send + Sync>,
     ),
 }
 
+#[derive(Default)]
 struct Memory {
     by_id: BTreeMap<Ulid, u64>,
     by_expiry: BTreeSet<(u64, Ulid)>,
@@ -137,15 +133,6 @@ impl Memory {
             }
             self.by_expiry.pop_first();
             self.by_id.remove(&id);
-        }
-    }
-}
-
-impl Default for Memory {
-    fn default() -> Self {
-        Self {
-            by_id: BTreeMap::new(),
-            by_expiry: BTreeSet::new(),
         }
     }
 }

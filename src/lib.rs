@@ -1,3 +1,4 @@
+#![allow(clippy::module_inception)]
 #![cfg_attr(not(feature = "zeroize"), allow(unused_mut))]
 //! ## Example
 //! ```
@@ -14,7 +15,7 @@
 //!
 //!     let challenge = pbcp
 //!         .verifier(&key, ttl)
-//!         .issue(&b"This is a challenge nonce".to_vec());
+//!         .issue(b"This is a challenge nonce".as_ref());
 //!
 //!     // Build JWT-style claims
 //!     let claims = Claims::builder()
@@ -57,7 +58,9 @@ mod verifier;
 pub use crate::common::{Claims, ClaimsBuilder, Counter};
 pub use crate::errors::PbcpError;
 pub use crate::prover::{Proof, Prover};
-pub use crate::verifier::{Challenge, Outcome, ReplayStore, Verifier};
+pub use crate::verifier::{
+    BackendError, Challenge, Outcome, ReplayStore, Verifier,
+};
 
 /// Alias for TraverseV proof-of-work parameters.
 pub type TvParams = traversev::Params;
@@ -179,7 +182,7 @@ mod tests {
         assert!(result.is_ok());
 
         let valid = result.unwrap();
-        assert_eq!(valid, true);
+        assert!(valid);
     }
 
     #[test]
