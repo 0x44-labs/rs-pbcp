@@ -1,13 +1,10 @@
-use http::Uri;
 use num_traits::{FromBytes, ToBytes};
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 #[cfg(feature = "zeroize")]
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-use crate::common::{
-    Claims, Counter, URI_SCHEME, Wire, b64url_vec, host_query,
-};
+use crate::common::{Claims, Counter, Wire, b64url_vec};
 use crate::errors::PbcpError;
 use crate::verifier::{Challenge, ChallengeWire};
 
@@ -30,28 +27,6 @@ impl Proof {
             claims: claims.clone(),
             nonce,
         }
-    }
-
-    /// Serialise this [Proof] to a `pbcp://proof` URI.
-    pub fn to_uri(&self) -> Result<Uri, PbcpError> {
-        let wire = ProofWire::try_from(self)?;
-
-        let p_and_q = wire.path_and_query()?;
-        let uri = Uri::builder()
-            .scheme(URI_SCHEME)
-            .authority("proof")
-            .path_and_query(p_and_q)
-            .build()?;
-
-        Ok(uri)
-    }
-
-    /// Parse a [Proof] from a `pbcp://proof` URI.
-    pub fn from_uri(uri: &Uri) -> Result<Self, PbcpError> {
-        let query = host_query(uri, "proof")?;
-        let wire: ProofWire = serde_qs::from_str(query)?;
-
-        Proof::try_from(wire)
     }
 
     /// Serialise this [Proof] to CBOR bytes, omitting parameters that have
@@ -250,16 +225,6 @@ mod tests {
         let nonce = Counter::default();
 
         Proof::new(challenge, &claims, nonce)
-    }
-
-    #[test]
-    fn uri_round_trip() {
-        let original = proof(&challenge());
-        let uri = original.to_uri().expect("valid Proof serialises to URI");
-
-        let reconstructed =
-            Proof::from_uri(&uri).expect("valid URI parses to Proof");
-        assert_eq!(original, reconstructed);
     }
 
     #[test]
