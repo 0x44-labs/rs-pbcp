@@ -1,7 +1,21 @@
 [package]
 name = "pbcp"
 version = "0.1.0"
+description = """
+A protocol for producing claims whose assertion is backed by proof of
+resources spent.
+"""
+authors = ["Determination Labs Team"]
+license = "MIT"
+documentation = "https://docs.rs/pbcp"
+homepage = "https://github.com/0x44-labs/rs-pbcp"
+repository = "https://github.com/0x44-labs/rs-pbcp"
+keywords = ["pow", "proof-of-work", "claims", "challenge", "protocol"]
+categories = ["cryptography"]
+readme = "README.md"
+include = ["src/**/*", "README.md", "LICENSE"]
 edition = "2024"
+rust-version = "1.85.1"
 
 [features]
 default = []

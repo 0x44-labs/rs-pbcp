@@ -1,5 +1,6 @@
 #![allow(clippy::module_inception)]
 #![cfg_attr(not(feature = "zeroize"), allow(unused_mut))]
+#![doc = include_str!("../README.md")]
 //! ## Example
 //! ```
 //! use pbcp::{Claims, Outcome, Pbcp, ReplayStore, TvParams};
