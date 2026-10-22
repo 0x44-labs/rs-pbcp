@@ -47,8 +47,8 @@
 //! ## Features
 //!
 //! The `zeroize` feature (disabled by default) implements `Zeroize` and
-//! `ZeroizeOnDrop` for `Claims`, `ClaimsBuilder`, and `Proof`, and
-//! zeroises intermediate values on a best-effort basis.
+//! `ZeroizeOnDrop` for `Claims`, `ClaimsBuilder`, `Proof`, and `Verifier`.
+//! Intermediate values are zeroized on a best-effort basis.
 mod common;
 mod errors;
 mod prover;

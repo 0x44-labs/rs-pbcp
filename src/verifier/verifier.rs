@@ -3,7 +3,7 @@ use subtle::ConstantTimeEq;
 use traversev::{Params, TraverseV};
 use ulid::Ulid;
 #[cfg(feature = "zeroize")]
-use zeroize::Zeroize;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::common::{derive_secret, unix_now};
 use crate::errors::PbcpError;
@@ -57,7 +57,7 @@ impl Verifier {
     ) -> Result<bool, PbcpError> {
         let challenge = proof.challenge();
 
-        let expected = auth_tag(
+        let mut expected = auth_tag(
             &self.key,
             challenge.id(),
             challenge.expires_at(),
@@ -65,12 +65,24 @@ impl Verifier {
             challenge.params(),
         );
         let tampered = expected.ct_ne(&challenge.auth_tag());
+
+        #[cfg(feature = "zeroize")]
+        expected.zeroize();
+
         if bool::from(tampered) {
             return Err(PbcpError::WrongChallenge);
         }
 
-        if proof.nonce().time() > challenge.expires_at()
-            || unix_now() > challenge.expires_at()
+        let time = {
+            let mut counter = proof.nonce();
+            let time = counter.time();
+
+            #[cfg(feature = "zeroize")]
+            counter.zeroize();
+
+            time
+        };
+        if time > challenge.expires_at() || unix_now() > challenge.expires_at()
         {
             return Err(PbcpError::Expired);
         }
@@ -142,6 +154,23 @@ impl core::fmt::Debug for Verifier {
             .finish_non_exhaustive()
     }
 }
+
+#[cfg(feature = "zeroize")]
+impl Zeroize for Verifier {
+    fn zeroize(&mut self) {
+        self.key.zeroize();
+    }
+}
+
+#[cfg(feature = "zeroize")]
+impl Drop for Verifier {
+    fn drop(&mut self) {
+        self.zeroize();
+    }
+}
+
+#[cfg(feature = "zeroize")]
+impl ZeroizeOnDrop for Verifier {}
 
 fn auth_tag(
     key: &[u8; 32],

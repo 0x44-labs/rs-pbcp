@@ -81,11 +81,11 @@ pub(crate) mod b64url_vec {
             formatter.write_str("a byte string")
         }
 
-        fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
+        fn visit_byte_buf<E>(self, v: Vec<u8>) -> Result<Self::Value, E>
         where
             E: serde::de::Error,
         {
-            Ok(v.to_vec())
+            Ok(v)
         }
     }
 }

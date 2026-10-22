@@ -64,8 +64,16 @@ impl Proof {
 
     /// Parse a [Proof] from CBOR bytes, using defaults for omitted parameters.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, PbcpError> {
-        let wire: ProofWire = ciborium::from_reader(bytes)?;
-        Proof::try_from(wire)
+        let mut scratch_buffer = vec![0u8; bytes.len().max(1)];
+        let result = ciborium::from_reader_with_buffer::<ProofWire, _>(
+            bytes,
+            &mut scratch_buffer,
+        );
+
+        #[cfg(feature = "zeroize")]
+        scratch_buffer.zeroize();
+
+        Proof::try_from(result?)
     }
 
     /// Returns reference to the challenge.
@@ -99,17 +107,22 @@ impl TryFrom<ProofWire> for Proof {
             auth_tag: value.auth_tag.clone(),
         };
         let challenge = Challenge::try_from(challenge_wire)?;
+        let claims = Claims::from_bytes(&value.claims)?;
 
-        let nonce: [u8; 16] = value
+        let mut nonce: [u8; 16] = value
             .nonce
-            .clone()
+            .as_slice()
             .try_into()
             .map_err(|_| PbcpError::NonceLen)?;
+        let counter = Counter::from_le_bytes(&nonce);
+
+        #[cfg(feature = "zeroize")]
+        nonce.zeroize();
 
         Ok(Self {
             challenge,
-            claims: Claims::from_bytes(&value.claims)?,
-            nonce: Counter::from_le_bytes(&nonce),
+            claims,
+            nonce: counter,
         })
     }
 }
@@ -163,13 +176,20 @@ impl TryFrom<&Proof> for ProofWire {
 
     fn try_from(value: &Proof) -> Result<Self, Self::Error> {
         let challenge_wire = ChallengeWire::from(&value.challenge);
+        let claims = value.claims.to_bytes()?;
+
+        let mut nonce_bytes = value.nonce.to_le_bytes();
+        let nonce = nonce_bytes.to_vec();
+
+        #[cfg(feature = "zeroize")]
+        nonce_bytes.zeroize();
 
         Ok(Self {
             id: challenge_wire.id,
             expires_at: challenge_wire.expires_at,
             challenge: challenge_wire.nonce.to_vec(),
-            claims: value.claims.to_bytes()?,
-            nonce: value.nonce.to_le_bytes().to_vec(),
+            claims,
+            nonce,
             m_cost: challenge_wire.m_cost,
             t_cost: challenge_wire.t_cost,
             e_cost: challenge_wire.e_cost,
