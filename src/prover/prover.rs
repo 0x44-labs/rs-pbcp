@@ -2,7 +2,7 @@ use traversev::TraverseV;
 #[cfg(feature = "zeroize")]
 use zeroize::Zeroize;
 
-use crate::common::{Claims, Counter, derive_secret};
+use crate::common::{Claims, Counter, derive_secret, unix_now};
 use crate::errors::PbcpError;
 use crate::prover::Proof;
 use crate::verifier::Challenge;
@@ -39,6 +39,10 @@ impl Prover {
     /// Mining searches until a satisfying nonce is found, so runtime is
     /// unbounded at high difficulties.
     pub fn prove(&self, claims: &Claims) -> Result<Proof, PbcpError> {
+        if unix_now() > self.challenge.expires_at() {
+            return Err(PbcpError::Expired);
+        }
+
         let mut input = claims.to_bytes()?;
         let mut nonce: Counter = self.tv.mine(&input, Counter::default(), 1);
 

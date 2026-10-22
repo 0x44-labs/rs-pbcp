@@ -58,6 +58,7 @@ mod errors;
 mod prover;
 mod verifier;
 
+use crate::common::unix_now;
 pub use crate::common::{Claims, ClaimsBuilder, Counter};
 pub use crate::errors::PbcpError;
 pub use crate::prover::{Proof, Prover};
@@ -103,6 +104,10 @@ impl Pbcp {
     pub fn prover(&self, challenge: &Challenge) -> Result<Prover, PbcpError> {
         let limit = self.params;
         let requested = challenge.params();
+
+        if unix_now() > challenge.expires_at() {
+            return Err(PbcpError::Expired);
+        }
 
         if requested.m_cost() > limit.m_cost()
             || requested.t_cost() > limit.t_cost()

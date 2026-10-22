@@ -9,7 +9,7 @@ pub enum PbcpError {
     /// Could not CBOR serialise data.
     CborSer(ciborium::ser::Error<std::io::Error>),
 
-    /// Submitted proof is expired.
+    /// Challenge has expired.
     Expired,
 
     /// Message could not be JSON serialised/deserialised.
@@ -54,7 +54,7 @@ impl std::fmt::Display for PbcpError {
         let msg = match self {
             Self::CborDe(e) => return core::fmt::Display::fmt(e, f),
             Self::CborSer(e) => return core::fmt::Display::fmt(e, f),
-            Self::Expired => "submitted proof is expired",
+            Self::Expired => "challenge has expired",
             Self::Json(e) => return core::fmt::Display::fmt(e, f),
             Self::NonceLen => "proof nonce expects 16 bytes",
             Self::Params(e) => return core::fmt::Display::fmt(e, f),
@@ -147,7 +147,7 @@ mod tests {
         match err {
             PbcpError::CborDe(e) => e.to_string().leak(),
             PbcpError::CborSer(e) => e.to_string().leak(),
-            PbcpError::Expired => "submitted proof is expired",
+            PbcpError::Expired => "challenge has expired",
             PbcpError::Json(e) => e.to_string().leak(),
             PbcpError::NonceLen => "proof nonce expects 16 bytes",
             PbcpError::Params(e) => e.to_string().leak(),
