@@ -194,7 +194,7 @@ mod tests {
         let original = claims();
         let bytes = original
             .to_bytes()
-            .expect("valid Claims serialises to canonical JSON bytes");
+            .expect("valid Claims serialise to canonical JSON bytes");
 
         let reconstructed = Claims::from_bytes(&bytes)
             .expect("valid canonical JSON bytes parse to Claims");

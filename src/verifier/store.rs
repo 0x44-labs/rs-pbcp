@@ -177,11 +177,15 @@ mod tests {
 
         let expires_at = unix_now() + TTL;
 
-        store.check_and_insert(id, expires_at).unwrap();
+        store
+            .check_and_insert(id, expires_at)
+            .expect("backend always succeeds");
         assert_eq!(deadline.load(Ordering::SeqCst), expires_at + MARGIN);
 
         // Saturates instead of overflowing
-        store.check_and_insert(id, u64::MAX).unwrap();
+        store
+            .check_and_insert(id, u64::MAX)
+            .expect("backend accepts saturated deadline");
         assert_eq!(deadline.load(Ordering::SeqCst), u64::MAX);
     }
 

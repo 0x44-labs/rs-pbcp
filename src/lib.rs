@@ -7,7 +7,7 @@
 //!
 //! fn main() {
 //!     // Create a new PBCP context
-//!     let params = TvParams::new(12 * 1024, 3, 8, 12).unwrap();
+//!     let params = TvParams::new(12 * 1024, 3, 8, 12).expect("valid params");
 //!     let pbcp = Pbcp::new("This is a context string", params);
 //!
 //!     // Issue a new challenge
@@ -188,7 +188,7 @@ mod tests {
         let result = verifier.verify(&proof, &store);
         assert!(result.is_ok());
 
-        let valid = result.unwrap();
+        let valid = result.expect("result is Ok");
         assert!(valid);
     }
 

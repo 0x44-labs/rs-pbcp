@@ -129,14 +129,19 @@ mod tests {
         let result = query.path_and_query();
         assert!(result.is_ok());
 
-        let p_and_q = result.unwrap();
+        let p_and_q = result.expect("result is Ok");
         assert_eq!(p_and_q.as_str(), "/?id=42&name=Human");
     }
 
     #[test]
     fn b64url_vec_round_trip() {
         let claims = claims();
-        let original = B64UrlVec(claims.to_bytes().unwrap().to_vec());
+        let original = B64UrlVec(
+            claims
+                .to_bytes()
+                .expect("valid Claims serialise to canonical JSON bytes")
+                .to_vec(),
+        );
 
         // Human-readable (JSON): serialised as a base64url string
         let json =

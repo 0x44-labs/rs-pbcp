@@ -241,7 +241,9 @@ mod tests {
 
     /// A nonce value satisfying the given challenge's difficulty.
     fn nonce(challenge: &Challenge, claims: &Claims) -> Counter {
-        let input = claims.to_bytes().unwrap();
+        let input = claims
+            .to_bytes()
+            .expect("valid Claims serialise to canonical JSON bytes");
         instance(challenge).mine(&input, Counter::default(), 1u64)
     }
 
