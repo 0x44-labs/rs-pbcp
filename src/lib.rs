@@ -1,4 +1,49 @@
 #![cfg_attr(not(feature = "zeroize"), allow(unused_mut))]
+//! ## Example
+//! ```
+//! use pbcp::{Claims, Outcome, Pbcp, ReplayStore, TvParams};
+//!
+//! fn main() {
+//!     // Create a new PBCP context
+//!     let params = TvParams::new(12 * 1024, 3, 8, 12).unwrap();
+//!     let pbcp = Pbcp::new("This is a context string", params);
+//!
+//!     // Issue a new challenge
+//!     let key = [0u8; 32];
+//!     let ttl = 300;
+//!
+//!     let challenge = pbcp
+//!         .verifier(&key, ttl)
+//!         .issue(&b"This is a challenge nonce".to_vec());
+//!
+//!     // Build JWT-style claims
+//!     let claims = Claims::builder()
+//!         .claim("iss", "https://humanity.example")
+//!         .claim("sub", "Homo sapiens")
+//!         .claim("aud", "https://humans-only.example")
+//!         .claim("iat", 1786554930)
+//!         .claim("exp", 1786561137)
+//!         .build();
+//!
+//!     // Create a prover from the challenge, then mine a proof over the claims
+//!     let prover = pbcp.prover(&challenge).expect("parameters in range");
+//!     let proof = prover
+//!         .prove(&claims)
+//!         .expect("any valid Claims are provable");
+//!
+//!     // Create a verifier and in-memory replay storage
+//!     let verifier = pbcp.verifier(&key, ttl);
+//!     let store = ReplayStore::new();
+//!
+//!     // The proof is accepted for the challenge
+//!     let outcome = verifier.judge(&proof, &store);
+//!     assert!(outcome.is_accepted());
+//!
+//!     // Resubmitting the proof rejects for challenge replay
+//!     let outcome = verifier.judge(&proof, &store);
+//!     assert_eq!(outcome, Outcome::Replayed(proof.challenge().id()));
+//! }
+//! ```
 //! ## Features
 //!
 //! The `zeroize` feature (disabled by default) implements `Zeroize` and
