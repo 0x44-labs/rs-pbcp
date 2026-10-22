@@ -1,10 +1,12 @@
-use http::Uri;
+use http::{Uri, uri::Authority};
 use serde::{Deserialize, Serialize};
 use traversev::Params;
 use ulid::Ulid;
 
-use crate::common::{URI_SCHEME, Wire, b64url_vec, host_query, non_default};
+use crate::common::{Wire, b64url_vec};
 use crate::errors::PbcpError;
+
+const URI_SCHEME: &str = "pbcp";
 
 /// A [verifier](crate::verifier::Verifier)-issued challenge.
 ///
@@ -38,25 +40,35 @@ impl Challenge {
         }
     }
 
-    /// Serialise this [Challenge] to a `pbcp://challenge` URI, omitting
-    /// parameters that have their default values.
-    pub fn to_uri(&self) -> Result<Uri, PbcpError> {
+    /// Serialise this [Challenge] to a `pbcp://` URI for the given authority,
+    /// omitting parameters that have their default values.
+    pub fn to_uri<T>(&self, auth: T) -> Result<Uri, PbcpError>
+    where
+        T: TryInto<Authority>,
+        <T as TryInto<Authority>>::Error: Into<http::Error>,
+    {
         let wire = ChallengeWire::from(self);
 
         let p_and_q = wire.path_and_query()?;
         let uri = Uri::builder()
             .scheme(URI_SCHEME)
-            .authority("challenge")
+            .authority(auth)
             .path_and_query(p_and_q)
             .build()?;
 
         Ok(uri)
     }
 
-    /// Parse a [Challenge] from a `pbcp://challenge` URI, using defaults for
-    /// omitted parameters.
+    /// Parse a [Challenge] from a `pbcp://` URI, using defaults for omitted
+    /// parameters.
     pub fn from_uri(uri: &Uri) -> Result<Self, PbcpError> {
-        let query = host_query(uri, "challenge")?;
+        if uri.scheme_str() != Some(URI_SCHEME) {
+            return Err(PbcpError::UriParse);
+        }
+        let query = match uri.query() {
+            Some(q) => Ok(q),
+            None => Err(PbcpError::UriParse),
+        }?;
         let wire: ChallengeWire = serde_qs::from_str(query)?;
 
         Challenge::try_from(wire)
@@ -168,6 +180,10 @@ impl From<&Challenge> for ChallengeWire {
     }
 }
 
+fn non_default<T: PartialEq>(value: T, default: T) -> Option<T> {
+    (value != default).then_some(value)
+}
+
 #[cfg(test)]
 mod tests {
     use base64::Engine;
@@ -215,8 +231,9 @@ mod tests {
 
         for params in [default_params, custom_params] {
             let original = challenge(Ulid::generate(), params);
+            let auth = Authority::from_static("example.com:3000");
             let uri = original
-                .to_uri()
+                .to_uri(auth)
                 .expect("valid Challenge serialises to URI");
 
             let reconstructed = Challenge::from_uri(&uri)

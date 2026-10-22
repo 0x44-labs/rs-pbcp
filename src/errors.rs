@@ -12,9 +12,6 @@ pub enum PbcpError {
     /// Submitted proof is expired.
     Expired,
 
-    /// URI host invalid for PBCP.
-    InvalidHost,
-
     /// Message could not be JSON serialised/deserialised.
     Json(serde_json::Error),
 
@@ -58,7 +55,6 @@ impl std::fmt::Display for PbcpError {
             Self::CborDe(e) => return core::fmt::Display::fmt(e, f),
             Self::CborSer(e) => return core::fmt::Display::fmt(e, f),
             Self::Expired => "submitted proof is expired",
-            Self::InvalidHost => "uri host invalid for pbcp",
             Self::Json(e) => return core::fmt::Display::fmt(e, f),
             Self::NonceLen => "proof nonce expects 16 bytes",
             Self::Params(e) => return core::fmt::Display::fmt(e, f),
@@ -152,7 +148,6 @@ mod tests {
             PbcpError::CborDe(e) => e.to_string().leak(),
             PbcpError::CborSer(e) => e.to_string().leak(),
             PbcpError::Expired => "submitted proof is expired",
-            PbcpError::InvalidHost => "uri host invalid for pbcp",
             PbcpError::Json(e) => e.to_string().leak(),
             PbcpError::NonceLen => "proof nonce expects 16 bytes",
             PbcpError::Params(e) => e.to_string().leak(),
@@ -218,7 +213,6 @@ mod tests {
             (cbor_de(), "CborDe"),
             (cbor_ser(), "CborSer"),
             (PbcpError::Expired, "Expired"),
-            (PbcpError::InvalidHost, "InvalidHost"),
             (json(), "Json"),
             (PbcpError::NonceLen, "NonceLen"),
             (params(), "Params"),
@@ -288,9 +282,12 @@ mod tests {
 
         // Converts into a boxed error via `?`
         fn fallible() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-            Err(PbcpError::InvalidHost)?
+            Err(PbcpError::Replayed)?
         }
         let boxed = fallible().unwrap_err();
-        assert_eq!(boxed.to_string(), "uri host invalid for pbcp");
+        assert_eq!(
+            boxed.to_string(),
+            "proof already submitted for this challenge"
+        );
     }
 }
