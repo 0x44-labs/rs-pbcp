@@ -6,7 +6,7 @@ use zeroize::Zeroize;
 
 use crate::common::unix_now;
 
-/// A `u128` counter valaue.
+/// A `u128` counter value.
 ///
 /// Holds a count in the low 64 bits and a Unix timestamp (in seconds) in the
 /// high 64 bits.
@@ -205,11 +205,11 @@ mod tests {
         let be: [u8; 16] = [TIME.to_be_bytes(), count.to_be_bytes()]
             .concat()
             .try_into()
-            .expect("two 64 bit values fit in 16 bytes");
+            .expect("two 64-bit values fit in 16 bytes");
         let le: [u8; 16] = [count.to_le_bytes(), TIME.to_le_bytes()]
             .concat()
             .try_into()
-            .expect("two 64 bit values fit in 16 bytes");
+            .expect("two 64-bit values fit in 16 bytes");
 
         assert_eq!(counter.to_be_bytes(), be);
         assert_eq!(counter.to_le_bytes(), le);
@@ -232,11 +232,11 @@ mod tests {
         let be: [u8; 16] = [TIME.to_be_bytes(), count.to_be_bytes()]
             .concat()
             .try_into()
-            .expect("two 64 bit values fit in 16 bytes");
+            .expect("two 64-bit values fit in 16 bytes");
         let le: [u8; 16] = [count.to_le_bytes(), TIME.to_le_bytes()]
             .concat()
             .try_into()
-            .expect("two 64 bit values fit in 16 bytes");
+            .expect("two 64-bit values fit in 16 bytes");
 
         assert_eq!(Counter::from_be_bytes(&be), expected);
         assert_eq!(Counter::from_le_bytes(&le), expected);

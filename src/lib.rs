@@ -53,7 +53,7 @@
 //!
 //! The `zeroize` feature (disabled by default) implements `Zeroize` and
 //! `ZeroizeOnDrop` for `Claims`, `ClaimsBuilder`, `Proof`, and `Verifier`.
-//! Intermediate values are zeroized on a best-effort basis.
+//! Intermediate values are zeroised on a best-effort basis.
 mod common;
 mod errors;
 mod prover;
@@ -93,7 +93,7 @@ impl Pbcp {
     /// Create a new keyed [Verifier] with the given time to live (TTL) in
     /// seconds.
     ///
-    /// All challenges expires `ttl` seconds after the verifier issues them.
+    /// All challenges expire `ttl` seconds after the verifier issues them.
     pub fn verifier(&self, key: &[u8; 32], ttl: u64) -> Verifier {
         Verifier::new(&self.context, key, ttl, self.params)
     }

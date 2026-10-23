@@ -3,7 +3,7 @@ use crate::verifier::BackendError;
 /// Errors returned by PBCP.
 #[derive(Debug)]
 pub enum PbcpError {
-    /// Expected exactly 16 bytes length.
+    /// Expected exactly 16 bytes.
     AuthTag,
 
     /// CBOR deserialisation failed.
@@ -12,7 +12,7 @@ pub enum PbcpError {
     /// CBOR serialisation failed.
     CborSer(ciborium::ser::Error<std::io::Error>),
 
-    /// Cannot exceed 64 bytes length.
+    /// Cannot exceed 64 bytes.
     ChallengeNonce,
 
     /// Challenge expired.
@@ -27,7 +27,7 @@ pub enum PbcpError {
     /// Cannot construct path and query.
     PathAndQuery(http::uri::InvalidUri),
 
-    /// Expected exactly 16 bytes length.
+    /// Expected exactly 16 bytes.
     ProofNonce,
 
     /// Querystring serialisation/deserialisation failed.
@@ -55,15 +55,15 @@ pub enum PbcpError {
 impl std::fmt::Display for PbcpError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let msg = match self {
-            Self::AuthTag => "expected exactly 16 bytes length",
+            Self::AuthTag => "expected exactly 16 bytes",
             Self::CborDe(e) => return core::fmt::Display::fmt(e, f),
             Self::CborSer(e) => return core::fmt::Display::fmt(e, f),
-            Self::ChallengeNonce => "cannot exceed 64 bytes length",
+            Self::ChallengeNonce => "cannot exceed 64 bytes",
             Self::Expired => "challenge expired",
             Self::Json(e) => return core::fmt::Display::fmt(e, f),
             Self::Params(e) => return core::fmt::Display::fmt(e, f),
             Self::PathAndQuery(e) => return core::fmt::Display::fmt(e, f),
-            Self::ProofNonce => "expected exactly 16 bytes length",
+            Self::ProofNonce => "expected exactly 16 bytes",
             Self::QueryString(e) => return core::fmt::Display::fmt(e, f),
             Self::Replayed => "proof already submitted for challenge",
             Self::StoreFail(e) => return core::fmt::Display::fmt(e, f),
@@ -149,15 +149,15 @@ mod tests {
     /// Expected [Display](core::fmt::Display) output.
     fn expected_display(err: &PbcpError) -> &'static str {
         match err {
-            PbcpError::AuthTag => "expected exactly 16 bytes length",
+            PbcpError::AuthTag => "expected exactly 16 bytes",
             PbcpError::CborDe(e) => e.to_string().leak(),
             PbcpError::CborSer(e) => e.to_string().leak(),
-            PbcpError::ChallengeNonce => "cannot exceed 64 bytes length",
+            PbcpError::ChallengeNonce => "cannot exceed 64 bytes",
             PbcpError::Expired => "challenge expired",
             PbcpError::Json(e) => e.to_string().leak(),
             PbcpError::Params(e) => e.to_string().leak(),
             PbcpError::PathAndQuery(e) => e.to_string().leak(),
-            PbcpError::ProofNonce => "expected exactly 16 bytes length",
+            PbcpError::ProofNonce => "expected exactly 16 bytes",
             PbcpError::QueryString(e) => e.to_string().leak(),
             PbcpError::Replayed => "proof already submitted for challenge",
             PbcpError::StoreFail(e) => e.to_string().leak(),

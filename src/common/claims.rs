@@ -138,7 +138,7 @@ impl ZeroizeOnDrop for ClaimsBuilder {}
 
 /// Wipes every `String` reachable from a `Value`, including object keys.
 ///
-/// Numbers, bools and null cannot be safely wiped in place.
+/// Numbers, bools, and null cannot be safely wiped in place.
 #[cfg(feature = "zeroize")]
 fn wipe_value(value: &mut Value) {
     match value {

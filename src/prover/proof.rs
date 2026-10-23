@@ -20,7 +20,7 @@ pub struct Proof {
 }
 
 impl Proof {
-    /// Create a new [Proof] for the given challenge, claims and nonce.
+    /// Create a new [Proof] for the given challenge, claims, and nonce.
     pub fn new(challenge: &Challenge, claims: &Claims, nonce: Counter) -> Self {
         Self {
             challenge: challenge.clone(),
@@ -51,7 +51,7 @@ impl Proof {
         Proof::try_from(result?)
     }
 
-    /// Returns reference to the challenge.
+    /// Returns a reference to the challenge.
     pub const fn challenge(&self) -> &Challenge {
         &self.challenge
     }
