@@ -172,9 +172,8 @@ fn auth_tag(
     nonce: &[u8],
     params: Params,
 ) -> [u8; 16] {
-    let mut hasher = Hasher::new();
+    let mut hasher = Hasher::new_keyed(key);
 
-    hasher.update(key);
     hasher.update(&id.to_bytes());
     hasher.update(&expires_at.to_le_bytes());
     for cost in [
