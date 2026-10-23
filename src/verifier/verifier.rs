@@ -57,7 +57,7 @@ impl Verifier {
     pub fn verify(
         &self,
         proof: &Proof,
-        store: &ReplayStore,
+        store: Option<&ReplayStore>,
     ) -> Result<bool, PbcpError> {
         let challenge = proof.challenge();
 
@@ -93,19 +93,22 @@ impl Verifier {
 
         let mut input = proof.claims().to_bytes()?;
 
-        match store.check_and_insert(challenge.id(), challenge.expires_at()) {
-            Ok(true) => {}
-            Ok(false) => {
-                #[cfg(feature = "zeroize")]
-                input.zeroize();
+        if let Some(store) = store {
+            match store.check_and_insert(challenge.id(), challenge.expires_at())
+            {
+                Ok(true) => {}
+                Ok(false) => {
+                    #[cfg(feature = "zeroize")]
+                    input.zeroize();
 
-                return Err(PbcpError::Replayed);
-            }
-            Err(e) => {
-                #[cfg(feature = "zeroize")]
-                input.zeroize();
+                    return Err(PbcpError::Replayed);
+                }
+                Err(e) => {
+                    #[cfg(feature = "zeroize")]
+                    input.zeroize();
 
-                return Err(e);
+                    return Err(e);
+                }
             }
         }
 
@@ -266,7 +269,7 @@ mod tests {
         let nonce = nonce(&challenge, &claims);
         let proof = Proof::new(&challenge, &claims, nonce);
 
-        let result = verifier.verify(&proof, &ReplayStore::new());
+        let result = verifier.verify(&proof, None);
         assert!(result.is_ok());
     }
 
@@ -285,7 +288,7 @@ mod tests {
         );
         let proof = Proof::new(&challenge, &claims(), counter_at(unix_now()));
 
-        let result = verifier.verify(&proof, &ReplayStore::new());
+        let result = verifier.verify(&proof, None);
         assert!(matches!(result.err(), Some(Error::WrongChallenge)));
     }
 
@@ -299,7 +302,7 @@ mod tests {
         let challenge = verifier.issue(NONCE).expect("nonce below 64 bytes");
         let nonce = counter_at(challenge.expires_at() + 1);
         let proof = Proof::new(&challenge, &claims(), nonce);
-        let result = verifier.verify(&proof, &store);
+        let result = verifier.verify(&proof, Some(&store));
         assert!(matches!(result.err(), Some(Error::Expired)));
 
         // The nonce time is within the TTL, only the verifier's clock rejects
@@ -308,7 +311,7 @@ mod tests {
         let tag = auth_tag(&KEY, id, expires_at, NONCE, params);
         let challenge = Challenge::new(id, expires_at, NONCE, params, tag);
         let proof = Proof::new(&challenge, &claims(), counter_at(expires_at));
-        let result = verifier.verify(&proof, &store);
+        let result = verifier.verify(&proof, Some(&store));
         assert!(matches!(result.err(), Some(Error::Expired)));
     }
 
@@ -320,10 +323,10 @@ mod tests {
         let challenge = verifier.issue(NONCE).expect("nonce below 64 bytes");
         let proof = Proof::new(&challenge, &claims(), counter_at(unix_now()));
 
-        let original = verifier.verify(&proof, &store);
+        let original = verifier.verify(&proof, Some(&store));
         assert!(original.is_ok());
 
-        let replayed = verifier.verify(&proof, &store);
+        let replayed = verifier.verify(&proof, Some(&store));
         assert!(matches!(replayed.err(), Some(PbcpError::Replayed)));
     }
 
@@ -335,7 +338,7 @@ mod tests {
         let challenge = verifier.issue(NONCE).expect("nonce below 64 bytes");
         let proof = Proof::new(&challenge, &claims(), counter_at(unix_now()));
 
-        let result = verifier.verify(&proof, &store);
+        let result = verifier.verify(&proof, Some(&store));
         assert!(matches!(result.err(), Some(Error::StoreFail(_))));
     }
 

@@ -39,13 +39,13 @@
 //!     let store = ReplayStore::new();
 //!
 //!     // The proof is accepted for the challenge
-//!     let result = verifier.verify(&proof, &store);
+//!     let result = verifier.verify(&proof, Some(&store));
 //!     assert!(result.is_ok());
 //!     let valid = result.expect("result is Ok");
 //!     assert!(valid);
 //!
 //!     // Resubmitting the proof rejects for challenge replay
-//!     let result = verifier.verify(&proof, &store);
+//!     let result = verifier.verify(&proof, Some(&store));
 //!     assert!(matches!(result.err(), Some(PbcpError::Replayed)));
 //! }
 //! ```
@@ -172,9 +172,7 @@ mod tests {
     #[test]
     fn proof_verifies() {
         let pbcp = Pbcp::new(CONTEXT, params());
-
         let verifier = pbcp.verifier(&KEY, TTL);
-        let store = ReplayStore::new();
 
         let prover = pbcp
             .prover(&verifier.issue(NONCE).expect("nonce below 64 bytes"))
@@ -185,7 +183,7 @@ mod tests {
             .prove(&claims)
             .expect("any valid Claims are provable");
 
-        let result = verifier.verify(&proof, &store);
+        let result = verifier.verify(&proof, None);
         assert!(result.is_ok());
 
         let valid = result.expect("result is Ok");
