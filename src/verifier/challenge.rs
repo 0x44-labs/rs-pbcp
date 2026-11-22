@@ -40,8 +40,7 @@ impl Challenge {
         }
     }
 
-    /// Serialise this [Challenge] to a `pbcp://` URI for the given authority,
-    /// omitting parameters that have their default values.
+    /// Serialise this [Challenge] to a `pbcp://` URI for the given authority.
     pub fn to_uri<T>(&self, auth: T) -> Result<Uri, PbcpError>
     where
         T: TryInto<Authority>,
@@ -59,8 +58,7 @@ impl Challenge {
         Ok(uri)
     }
 
-    /// Parse a [Challenge] from a `pbcp://` URI, using defaults for omitted
-    /// parameters.
+    /// Parse a [Challenge] from a `pbcp://` URI.
     pub fn from_uri(uri: &Uri) -> Result<Self, PbcpError> {
         if uri.scheme_str() != Some(URI_SCHEME) {
             return Err(PbcpError::UriParse);
@@ -74,16 +72,14 @@ impl Challenge {
         Challenge::try_from(wire)
     }
 
-    /// Serialise this [Challenge] to CBOR bytes, omitting parameters that have
-    /// their default values.
+    /// Serialise this [Challenge] to CBOR bytes.
     pub fn to_bytes(&self) -> Result<Vec<u8>, PbcpError> {
         let mut buf = Vec::new();
         ciborium::into_writer(&ChallengeWire::from(self), &mut buf)?;
         Ok(buf)
     }
 
-    /// Parse a [Challenge] from CBOR bytes, using defaults for omitted
-    /// parameters.
+    /// Parse a [Challenge] from CBOR bytes.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, PbcpError> {
         let wire: ChallengeWire = ciborium::from_reader(bytes)?;
         Challenge::try_from(wire)
@@ -119,13 +115,9 @@ impl TryFrom<ChallengeWire> for Challenge {
     type Error = PbcpError;
 
     fn try_from(value: ChallengeWire) -> Result<Self, Self::Error> {
-        let params = Params::new(
-            value.m_cost.unwrap_or(traversev::Params::DEFAULT_M),
-            value.t_cost.unwrap_or(traversev::Params::DEFAULT_T),
-            value.e_cost.unwrap_or(traversev::Params::DEFAULT_E),
-            value.n_cost.unwrap_or(traversev::Params::DEFAULT_N),
-        )
-        .map_err(Self::Error::Params)?;
+        let params =
+            Params::new(value.m_cost, value.t_cost, value.e_cost, value.n_cost)
+                .map_err(Self::Error::Params)?;
 
         let auth_tag: [u8; 16] = value
             .auth_tag
@@ -151,14 +143,10 @@ pub(crate) struct ChallengeWire {
     pub(crate) expires_at: u64,
     #[serde(with = "b64url_vec")]
     pub(crate) nonce: Vec<u8>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) m_cost: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) t_cost: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) e_cost: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) n_cost: Option<u32>,
+    pub(crate) m_cost: u32,
+    pub(crate) t_cost: u32,
+    pub(crate) e_cost: u32,
+    pub(crate) n_cost: u32,
     #[serde(with = "b64url_vec")]
     pub(crate) auth_tag: Vec<u8>,
 }
@@ -171,17 +159,13 @@ impl From<&Challenge> for ChallengeWire {
             id: value.id,
             expires_at: value.expires_at,
             nonce: value.nonce.clone(),
-            m_cost: non_default(value.params.m_cost(), Params::DEFAULT_M),
-            t_cost: non_default(value.params.t_cost(), Params::DEFAULT_T),
-            e_cost: non_default(value.params.e_cost(), Params::DEFAULT_E),
-            n_cost: non_default(value.params.n_cost(), Params::DEFAULT_N),
+            m_cost: value.params.m_cost(),
+            t_cost: value.params.t_cost(),
+            e_cost: value.params.e_cost(),
+            n_cost: value.params.n_cost(),
             auth_tag: value.auth_tag.to_vec(),
         }
     }
-}
-
-fn non_default<T: PartialEq>(value: T, default: T) -> Option<T> {
-    (value != default).then_some(value)
 }
 
 #[cfg(test)]
@@ -207,12 +191,21 @@ mod tests {
         )
     }
 
-    fn challenge_query() -> String {
+    fn challenge_query(
+        m_cost: u32,
+        t_cost: u32,
+        e_cost: u32,
+        n_cost: u32,
+    ) -> String {
         format!(
-            "id={}&expires_at={}&nonce={}&auth_tag={}",
+            "id={}&expires_at={}&nonce={}&m_cost={}&t_cost={}&e_cost={}&n_cost={}&auth_tag={}",
             Ulid::generate(),
             TIME + TTL,
             URL_SAFE_NO_PAD.encode(NONCE),
+            m_cost,
+            t_cost,
+            e_cost,
+            n_cost,
             URL_SAFE_NO_PAD.encode([0u8; 16])
         )
     }
@@ -251,8 +244,16 @@ mod tests {
 
     #[test]
     fn from_uri_rejects_invalid_params() {
-        let uri =
-            parse_uri("challenge", &format!("{}&m_cost=1", challenge_query()));
+        let default_params = Params::default();
+        let uri = parse_uri(
+            "challenge",
+            &challenge_query(
+                1, // m_cost of 1 is too low
+                default_params.t_cost(),
+                default_params.e_cost(),
+                default_params.n_cost(),
+            ),
+        );
         let result = Challenge::from_uri(&uri);
         assert!(matches!(result.err(), Some(Error::Params(_))));
     }

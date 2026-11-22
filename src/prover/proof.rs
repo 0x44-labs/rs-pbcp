@@ -132,14 +132,10 @@ pub(crate) struct ProofWire {
     pub(crate) challenge: Vec<u8>,
     #[serde(with = "b64url_vec")]
     pub(crate) nonce: Vec<u8>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) m_cost: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) t_cost: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) e_cost: Option<u32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) n_cost: Option<u32>,
+    pub(crate) m_cost: u32,
+    pub(crate) t_cost: u32,
+    pub(crate) e_cost: u32,
+    pub(crate) n_cost: u32,
     #[serde(with = "b64url_vec")]
     pub(crate) auth_tag: Vec<u8>,
 }
