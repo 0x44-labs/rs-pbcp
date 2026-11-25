@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use traversev::Params;
 use ulid::Ulid;
 
-use crate::common::{Wire, b64url_vec};
+use crate::common::{Claims, Wire, b64url_vec};
 use crate::errors::PbcpError;
 
 const URI_SCHEME: &str = "pbcp";
@@ -17,6 +17,7 @@ pub struct Challenge {
     id: Ulid,
     expires_at: u64,
     nonce: Vec<u8>,
+    claims: Vec<String>,
     params: Params,
     auth_tag: [u8; 16],
 }
@@ -35,9 +36,31 @@ impl Challenge {
             id,
             expires_at,
             nonce: nonce.to_vec(),
+            claims: Vec::new(),
             params,
             auth_tag,
         }
+    }
+
+    /// Require the named claims to be present in any claims set proven for
+    /// this [Challenge]. Names must be non-empty and cannot contain a comma.
+    pub fn with_required_claims<I, S>(
+        mut self,
+        names: I,
+    ) -> Result<Self, PbcpError>
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        let names: Vec<String> = names.into_iter().map(Into::into).collect();
+        valid_claim_names(&names)?;
+        self.claims = names;
+        Ok(self)
+    }
+
+    /// Returns whether the given [Claims] contain every required claim.
+    pub fn is_satisfied_by(&self, claims: &Claims) -> bool {
+        self.claims.iter().all(|name| claims.claim(name).is_some())
     }
 
     /// Serialise this [Challenge] to a `pbcp://` URI for the given authority.
@@ -100,6 +123,11 @@ impl Challenge {
         &self.nonce
     }
 
+    /// Returns a reference to the claims required by this challenge.
+    pub const fn claims(&self) -> &Vec<String> {
+        &self.claims
+    }
+
     /// Returns the parameters.
     pub const fn params(&self) -> Params {
         self.params
@@ -115,6 +143,12 @@ impl TryFrom<ChallengeWire> for Challenge {
     type Error = PbcpError;
 
     fn try_from(value: ChallengeWire) -> Result<Self, Self::Error> {
+        let claims: Vec<String> = match value.claims.as_deref() {
+            Some(names) => names.split(",").map(str::to_owned).collect(),
+            None => Vec::new(),
+        };
+        valid_claim_names(&claims)?;
+
         let params =
             Params::new(value.m_cost, value.t_cost, value.e_cost, value.n_cost)
                 .map_err(Self::Error::Params)?;
@@ -129,6 +163,7 @@ impl TryFrom<ChallengeWire> for Challenge {
             id: value.id,
             expires_at: value.expires_at,
             nonce: value.nonce.clone(),
+            claims,
             params,
             auth_tag,
         })
@@ -143,6 +178,7 @@ pub(crate) struct ChallengeWire {
     pub(crate) expires_at: u64,
     #[serde(with = "b64url_vec")]
     pub(crate) nonce: Vec<u8>,
+    pub(crate) claims: Option<String>,
     pub(crate) m_cost: u32,
     pub(crate) t_cost: u32,
     pub(crate) e_cost: u32,
@@ -159,6 +195,7 @@ impl From<&Challenge> for ChallengeWire {
             id: value.id,
             expires_at: value.expires_at,
             nonce: value.nonce.clone(),
+            claims: (!value.claims.is_empty()).then(|| value.claims.join(",")),
             m_cost: value.params.m_cost(),
             t_cost: value.params.t_cost(),
             e_cost: value.params.e_cost(),
@@ -166,6 +203,18 @@ impl From<&Challenge> for ChallengeWire {
             auth_tag: value.auth_tag.to_vec(),
         }
     }
+}
+
+fn valid_claim_names<S: AsRef<str>>(names: &[S]) -> Result<(), PbcpError> {
+    let invalid = names.iter().any(|v| {
+        let name = v.as_ref();
+        name.is_empty() || name.contains(",")
+    });
+
+    if invalid {
+        return Err(PbcpError::ClaimName);
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -189,6 +238,16 @@ mod tests {
             params,
             [0u8; 16],
         )
+    }
+
+    fn claims() -> Claims {
+        Claims::builder()
+            .claim("iss", "https://humanity.example")
+            .claim("sub", "Homo sapiens")
+            .claim("aud", "https://humans-only.example")
+            .claim("iat", 1786554930)
+            .claim("exp", 1786561137)
+            .build()
     }
 
     fn challenge_query(
@@ -217,17 +276,44 @@ mod tests {
     }
 
     #[test]
+    fn with_required_claims_rejects_invalid_names() {
+        for names in [vec![""], vec!["", "a,b"]] {
+            let result = challenge(Ulid::generate(), Params::default())
+                .with_required_claims(names);
+            assert!(matches!(result.err(), Some(Error::ClaimName)));
+        }
+    }
+
+    #[test]
+    fn required_claims_satisfied_by_claims() {
+        let challenge = challenge(Ulid::generate(), Params::default())
+            .with_required_claims(["iss", "sub", "aud", "iat", "exp"])
+            .expect("valid claim names");
+        let claims = claims();
+
+        let satisfied = challenge.is_satisfied_by(&claims);
+        assert!(satisfied);
+    }
+
+    #[test]
     fn uri_round_trip() {
         let default_params = Params::default();
         let custom_params = Params::new(16 * 1024, 2, 4, 12)
             .expect("valid parameters for TraverseV");
 
         for params in [default_params, custom_params] {
-            let original = challenge(Ulid::generate(), params);
+            let original = challenge(Ulid::generate(), params)
+                .with_required_claims(["iss", "sub", "aud", "iat", "exp"])
+                .expect("valid claim names");
             let auth = Authority::from_static("example.com:3000");
             let uri = original
                 .to_uri(auth)
                 .expect("valid Challenge serialises to URI");
+            assert!(
+                uri.query()
+                    .expect("URI has query")
+                    .contains("claims=iss%2Csub%2Caud%2Ciat%2Cexp")
+            );
 
             let reconstructed = Challenge::from_uri(&uri)
                 .expect("valid URI parses to Challenge");
