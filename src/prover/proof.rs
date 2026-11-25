@@ -75,6 +75,7 @@ impl TryFrom<ProofWire> for Proof {
             id: value.id,
             expires_at: value.expires_at,
             nonce: value.challenge.clone(),
+            claims: value.requested.clone(),
             m_cost: value.m_cost,
             t_cost: value.t_cost,
             e_cost: value.e_cost,
@@ -130,6 +131,8 @@ pub(crate) struct ProofWire {
     pub(crate) claims: Vec<u8>,
     #[serde(with = "b64url_vec")]
     pub(crate) challenge: Vec<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) requested: Option<String>,
     #[serde(with = "b64url_vec")]
     pub(crate) nonce: Vec<u8>,
     pub(crate) m_cost: u32,
@@ -159,6 +162,7 @@ impl TryFrom<&Proof> for ProofWire {
             id: challenge_wire.id,
             expires_at: challenge_wire.expires_at,
             challenge: challenge_wire.nonce.to_vec(),
+            requested: challenge_wire.claims,
             claims,
             nonce,
             m_cost: challenge_wire.m_cost,
