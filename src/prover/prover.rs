@@ -43,6 +43,10 @@ impl Prover {
             return Err(PbcpError::Expired);
         }
 
+        if !self.challenge.is_satisfied_by(claims) {
+            return Err(PbcpError::MissingClaims);
+        }
+
         let mut input = claims.to_bytes()?;
         let mut nonce: Counter = self.tv.mine(&input, Counter::default(), 1);
 
@@ -97,10 +101,19 @@ mod tests {
     #[test]
     fn prove_mines_proof() {
         let prover = Prover::new(CONTEXT, &challenge());
-        let claims = claims();
-
-        let result = prover.prove(&claims);
+        let result = prover.prove(&claims());
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn prove_rejects_missing_required_claims() {
+        let challenge = challenge()
+            .with_required_claims(["nbf"])
+            .expect("valid claim names");
+        let prover = Prover::new(CONTEXT, &challenge);
+
+        let result = prover.prove(&claims());
+        assert!(matches!(result.err(), Some(PbcpError::MissingClaims)));
     }
 
     #[test]
