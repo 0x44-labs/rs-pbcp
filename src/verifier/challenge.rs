@@ -220,27 +220,27 @@ impl TryFrom<ChallengeWire> for Challenge {
 #[derive(Clone, Serialize, Deserialize)]
 #[cfg_attr(test, derive(Debug, PartialEq, Eq))]
 #[serde(deny_unknown_fields)]
-pub(crate) struct ChallengeWire {
-    pub(crate) id: Ulid,
-    pub(crate) expires_at: u64,
+struct ChallengeWire {
+    id: Ulid,
+    expires_at: u64,
     #[serde(with = "b64url_vec")]
-    pub(crate) nonce: Vec<u8>,
+    nonce: Vec<u8>,
     #[serde(
         default,
         skip_serializing_if = "BTreeSet::is_empty",
         with = "claim_names"
     )]
-    pub(crate) required_claims: BTreeSet<String>,
-    pub(crate) m_cost: u32,
-    pub(crate) t_cost: u32,
-    pub(crate) e_cost: u32,
-    pub(crate) n_cost: u32,
+    required_claims: BTreeSet<String>,
+    m_cost: u32,
+    t_cost: u32,
+    e_cost: u32,
+    n_cost: u32,
     #[serde(
         default,
         skip_serializing_if = "Vec::is_empty",
         with = "b64url_vec"
     )]
-    pub(crate) auth_tag: Vec<u8>,
+    auth_tag: Vec<u8>,
 }
 
 impl Wire for ChallengeWire {}

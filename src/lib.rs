@@ -16,7 +16,10 @@
 //!
 //!     let challenge = pbcp
 //!         .verifier(&key, ttl)
-//!         .issue(b"This is a challenge nonce".as_ref())
+//!         .issue(
+//!             b"This is a challenge nonce".as_ref(),
+//!             Some(&["iss", "sub", "aud", "iat", "exp"]),
+//!         )
 //!         .expect("nonce below 64 bytes");
 //!
 //!     // Build JWT-style claims

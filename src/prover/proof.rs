@@ -1,14 +1,11 @@
-use std::collections::BTreeSet;
-
 use num_traits::{FromBytes, ToBytes};
 use serde::{Deserialize, Serialize};
-use ulid::Ulid;
 #[cfg(feature = "zeroize")]
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-use crate::common::{Claims, Counter, Wire, b64url_vec, claim_names};
+use crate::common::{Claims, Counter, Wire, b64url_vec};
 use crate::errors::PbcpError;
-use crate::verifier::{Challenge, ChallengeWire};
+use crate::verifier::Challenge;
 
 /// Response to a [Challenge].
 ///
@@ -73,18 +70,7 @@ impl TryFrom<ProofWire> for Proof {
     type Error = PbcpError;
 
     fn try_from(value: ProofWire) -> Result<Self, Self::Error> {
-        let challenge_wire = ChallengeWire {
-            id: value.id,
-            expires_at: value.expires_at,
-            nonce: value.challenge.clone(),
-            required_claims: value.required_claims.clone(),
-            m_cost: value.m_cost,
-            t_cost: value.t_cost,
-            e_cost: value.e_cost,
-            n_cost: value.n_cost,
-            auth_tag: value.auth_tag.clone(),
-        };
-        let challenge = Challenge::try_from(challenge_wire)?;
+        let challenge = Challenge::from_bytes(&value.challenge)?;
         let claims = Claims::from_bytes(&value.claims)?;
 
         let mut nonce: [u8; 16] = value
@@ -127,30 +113,12 @@ impl ZeroizeOnDrop for Proof {}
 #[cfg_attr(test, derive(Debug, PartialEq, Eq))]
 #[serde(deny_unknown_fields)]
 pub(crate) struct ProofWire {
-    pub(crate) id: Ulid,
-    pub(crate) expires_at: u64,
+    #[serde(with = "b64url_vec")]
+    pub(crate) challenge: Vec<u8>,
     #[serde(with = "b64url_vec")]
     pub(crate) claims: Vec<u8>,
     #[serde(with = "b64url_vec")]
-    pub(crate) challenge: Vec<u8>,
-    #[serde(
-        default,
-        skip_serializing_if = "BTreeSet::is_empty",
-        with = "claim_names"
-    )]
-    pub(crate) required_claims: BTreeSet<String>,
-    #[serde(with = "b64url_vec")]
     pub(crate) nonce: Vec<u8>,
-    pub(crate) m_cost: u32,
-    pub(crate) t_cost: u32,
-    pub(crate) e_cost: u32,
-    pub(crate) n_cost: u32,
-    #[serde(
-        default,
-        skip_serializing_if = "Vec::is_empty",
-        with = "b64url_vec"
-    )]
-    pub(crate) auth_tag: Vec<u8>,
 }
 
 impl Wire for ProofWire {}
@@ -159,7 +127,6 @@ impl TryFrom<&Proof> for ProofWire {
     type Error = PbcpError;
 
     fn try_from(value: &Proof) -> Result<Self, Self::Error> {
-        let challenge_wire = ChallengeWire::from(&value.challenge);
         let claims = value.claims.to_bytes()?;
 
         let mut nonce_bytes = value.nonce.to_le_bytes();
@@ -169,17 +136,9 @@ impl TryFrom<&Proof> for ProofWire {
         nonce_bytes.zeroize();
 
         Ok(Self {
-            id: challenge_wire.id,
-            expires_at: challenge_wire.expires_at,
-            challenge: challenge_wire.nonce.to_vec(),
-            required_claims: challenge_wire.required_claims,
+            challenge: value.challenge.to_bytes()?,
             claims,
             nonce,
-            m_cost: challenge_wire.m_cost,
-            t_cost: challenge_wire.t_cost,
-            e_cost: challenge_wire.e_cost,
-            n_cost: challenge_wire.n_cost,
-            auth_tag: challenge_wire.auth_tag,
         })
     }
 }
@@ -205,6 +164,7 @@ impl ZeroizeOnDrop for ProofWire {}
 #[cfg(test)]
 mod tests {
     use traversev::Params;
+    use ulid::Ulid;
 
     use crate::common::unix_now;
 
