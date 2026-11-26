@@ -290,6 +290,7 @@ dependencies = [
  "ciborium",
  "http",
  "num-traits",
+ "percent-encoding",
  "serde",
  "serde_json",
  "serde_json_canonicalizer",

@@ -27,6 +27,7 @@ blake3 = "1.8.7"
 ciborium = "0.2.2"
 http = "1.5.0"
 num-traits = "0.2.19"
+percent-encoding = "2.3.2"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 serde_json_canonicalizer = "0.3.2"

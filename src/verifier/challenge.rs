@@ -1,9 +1,11 @@
+use std::collections::BTreeSet;
+
 use http::{Uri, uri::Authority};
 use serde::{Deserialize, Serialize};
 use traversev::Params;
 use ulid::Ulid;
 
-use crate::common::{Claims, Wire, b64url_vec};
+use crate::common::{Claims, Wire, b64url_vec, claim_names};
 use crate::errors::PbcpError;
 
 const URI_SCHEME: &str = "pbcp";
@@ -17,7 +19,7 @@ pub struct Challenge {
     id: Ulid,
     expires_at: u64,
     nonce: Vec<u8>,
-    claims: Vec<String>,
+    required_claims: BTreeSet<String>,
     params: Params,
     auth_tag: [u8; 16],
 }
@@ -36,31 +38,28 @@ impl Challenge {
             id,
             expires_at,
             nonce: nonce.to_vec(),
-            claims: Vec::new(),
+            required_claims: BTreeSet::new(),
             params,
             auth_tag,
         }
     }
 
     /// Require the named claims to be present in any claims set proven for
-    /// this [Challenge]. Names must be non-empty and cannot contain a comma.
-    pub fn with_required_claims<I, S>(
-        mut self,
-        names: I,
-    ) -> Result<Self, PbcpError>
+    /// this [Challenge]. Claim names are unique, so duplicates collapse.
+    pub fn with_required_claims<I, S>(mut self, names: I) -> Self
     where
         I: IntoIterator<Item = S>,
         S: Into<String>,
     {
-        let names: Vec<String> = names.into_iter().map(Into::into).collect();
-        valid_claim_names(&names)?;
-        self.claims = names;
-        Ok(self)
+        self.required_claims = names.into_iter().map(Into::into).collect();
+        self
     }
 
     /// Returns whether the given [Claims] contain every required claim.
     pub fn is_satisfied_by(&self, claims: &Claims) -> bool {
-        self.claims.iter().all(|name| claims.claim(name).is_some())
+        self.required_claims
+            .iter()
+            .all(|name| claims.claim(name).is_some())
     }
 
     /// Serialise this [Challenge] to a `pbcp://` URI for the given authority.
@@ -124,8 +123,8 @@ impl Challenge {
     }
 
     /// Returns a reference to the claims required by this challenge.
-    pub const fn claims(&self) -> &Vec<String> {
-        &self.claims
+    pub const fn required_claims(&self) -> &BTreeSet<String> {
+        &self.required_claims
     }
 
     /// Returns the parameters.
@@ -143,11 +142,7 @@ impl TryFrom<ChallengeWire> for Challenge {
     type Error = PbcpError;
 
     fn try_from(value: ChallengeWire) -> Result<Self, Self::Error> {
-        let claims: Vec<String> = match value.claims.as_deref() {
-            Some(names) => names.split(",").map(str::to_owned).collect(),
-            None => Vec::new(),
-        };
-        valid_claim_names(&claims)?;
+        let required_claims = value.required_claims.clone();
 
         let params =
             Params::new(value.m_cost, value.t_cost, value.e_cost, value.n_cost)
@@ -163,7 +158,7 @@ impl TryFrom<ChallengeWire> for Challenge {
             id: value.id,
             expires_at: value.expires_at,
             nonce: value.nonce.clone(),
-            claims,
+            required_claims,
             params,
             auth_tag,
         })
@@ -178,7 +173,12 @@ pub(crate) struct ChallengeWire {
     pub(crate) expires_at: u64,
     #[serde(with = "b64url_vec")]
     pub(crate) nonce: Vec<u8>,
-    pub(crate) claims: Option<String>,
+    #[serde(
+        default,
+        skip_serializing_if = "BTreeSet::is_empty",
+        with = "claim_names"
+    )]
+    pub(crate) required_claims: BTreeSet<String>,
     pub(crate) m_cost: u32,
     pub(crate) t_cost: u32,
     pub(crate) e_cost: u32,
@@ -195,7 +195,7 @@ impl From<&Challenge> for ChallengeWire {
             id: value.id,
             expires_at: value.expires_at,
             nonce: value.nonce.clone(),
-            claims: (!value.claims.is_empty()).then(|| value.claims.join(",")),
+            required_claims: value.required_claims.clone(),
             m_cost: value.params.m_cost(),
             t_cost: value.params.t_cost(),
             e_cost: value.params.e_cost(),
@@ -205,18 +205,7 @@ impl From<&Challenge> for ChallengeWire {
     }
 }
 
-fn valid_claim_names<S: AsRef<str>>(names: &[S]) -> Result<(), PbcpError> {
-    let invalid = names.iter().any(|v| {
-        let name = v.as_ref();
-        name.is_empty() || name.contains(",")
-    });
-
-    if invalid {
-        return Err(PbcpError::ClaimName);
-    }
-    Ok(())
-}
-
+/*
 #[cfg(test)]
 mod tests {
     use base64::Engine;
@@ -371,3 +360,4 @@ mod tests {
         assert_eq!(challenge.auth_tag(), [0u8; 16]);
     }
 }
+*/

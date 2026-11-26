@@ -90,6 +90,66 @@ pub(crate) mod b64url_vec {
     }
 }
 
+pub(crate) mod claim_names {
+    use std::collections::BTreeSet;
+
+    use percent_encoding::{
+        NON_ALPHANUMERIC, percent_decode_str, utf8_percent_encode,
+    };
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    #[cfg(feature = "zeroize")]
+    use zeroize::Zeroize;
+
+    pub(crate) fn serialize<S: Serializer>(
+        v: &BTreeSet<String>,
+        s: S,
+    ) -> Result<S::Ok, S::Error> {
+        if !s.is_human_readable() {
+            return v.serialize(s);
+        }
+
+        let mut encoded = v
+            .iter()
+            .map(|name| utf8_percent_encode(name, NON_ALPHANUMERIC).to_string())
+            .collect::<Vec<_>>()
+            .join(",");
+        let serialized = s.serialize_str(&encoded);
+
+        #[cfg(feature = "zeroize")]
+        encoded.zeroize();
+
+        serialized
+    }
+
+    pub(crate) fn deserialize<'de, D: Deserializer<'de>>(
+        d: D,
+    ) -> Result<BTreeSet<String>, D::Error> {
+        if !d.is_human_readable() {
+            return BTreeSet::<String>::deserialize(d);
+        }
+
+        let mut input = String::deserialize(d)?;
+        let deserialized = input
+            .split(',')
+            .map(|segment| {
+                percent_decode_str(segment)
+                    .decode_utf8()
+                    .map(|name| name.into_owned())
+            })
+            .collect::<Result<BTreeSet<String>, _>>()
+            .map_err(|_| {
+                <D::Error as serde::de::Error>::custom(
+                    "invalid claim name escape",
+                )
+            });
+
+        #[cfg(feature = "zeroize")]
+        input.zeroize();
+
+        deserialized
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use serde::Deserialize;
