@@ -164,7 +164,11 @@ mod tests {
         let verifier = pbcp.verifier(&KEY, TTL);
 
         let prover = pbcp
-            .prover(&verifier.issue(NONCE).expect("nonce below 64 bytes"))
+            .prover(
+                &verifier
+                    .issue(NONCE, Some(&["iss", "sub", "aud", "iat", "exp"]))
+                    .expect("nonce below 64 bytes"),
+            )
             .expect("challenge is within limits");
         assert_eq!(prover.challenge().nonce(), NONCE);
     }
@@ -175,7 +179,11 @@ mod tests {
         let verifier = pbcp.verifier(&KEY, TTL);
 
         let prover = pbcp
-            .prover(&verifier.issue(NONCE).expect("nonce below 64 bytes"))
+            .prover(
+                &verifier
+                    .issue(NONCE, Some(&["iss", "sub", "aud", "iat", "exp"]))
+                    .expect("nonce below 64 bytes"),
+            )
             .expect("challenge is within limits");
 
         let claims = claims();
@@ -195,7 +203,7 @@ mod tests {
         let pbcp = Pbcp::new(CONTEXT, params());
         let challenge = pbcp
             .verifier(&KEY, TTL)
-            .issue(NONCE)
+            .issue(NONCE, Some(&["iss", "sub", "aud", "iat", "exp"]))
             .expect("nonce below 64 bytes");
 
         let result = pbcp.prover(&challenge);
@@ -216,7 +224,6 @@ mod tests {
                 unix_now() + TTL,
                 NONCE,
                 params,
-                [0u8; 16],
             );
 
             let result = pbcp.prover(&challenge);

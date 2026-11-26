@@ -1,9 +1,13 @@
 use std::collections::BTreeSet;
 
+use blake3::Hasher;
 use http::{Uri, uri::Authority};
 use serde::{Deserialize, Serialize};
+use subtle::ConstantTimeEq;
 use traversev::Params;
 use ulid::Ulid;
+#[cfg(feature = "zeroize")]
+use zeroize::Zeroize;
 
 use crate::common::{Claims, Wire, b64url_vec, claim_names};
 use crate::errors::PbcpError;
@@ -21,18 +25,17 @@ pub struct Challenge {
     nonce: Vec<u8>,
     required_claims: BTreeSet<String>,
     params: Params,
-    auth_tag: [u8; 16],
+    auth_tag: Option<[u8; 16]>,
 }
 
 impl Challenge {
     /// Create a new [Challenge] with the given challenge identifier, time
-    /// of expiration, nonce, TraverseV parameters, and authentication tag.
+    /// of expiration, nonce, and TraverseV parameters.
     pub fn new(
         id: Ulid,
         expires_at: u64,
         nonce: &[u8],
         params: Params,
-        auth_tag: [u8; 16],
     ) -> Self {
         Self {
             id,
@@ -40,7 +43,7 @@ impl Challenge {
             nonce: nonce.to_vec(),
             required_claims: BTreeSet::new(),
             params,
-            auth_tag,
+            auth_tag: None,
         }
     }
 
@@ -60,6 +63,28 @@ impl Challenge {
         self.required_claims
             .iter()
             .all(|name| claims.claim(name).is_some())
+    }
+
+    /// Compute the authentication tag of this [Challenge] with the given key.
+    pub fn authenticate(mut self, key: &[u8; 32]) -> Result<Self, PbcpError> {
+        self.auth_tag = Some(self.compute_auth_tag(key)?);
+        Ok(self)
+    }
+
+    /// Returns whether the authentication tag of this [Challenge] was computed
+    /// with the given key. A challenge without a tag is never authentic.
+    pub fn is_authentic(&self, key: &[u8; 32]) -> Result<bool, PbcpError> {
+        let Some(tag) = self.auth_tag else {
+            return Ok(false);
+        };
+
+        let mut expected = self.compute_auth_tag(key)?;
+        let authentic = expected.ct_eq(&tag);
+
+        #[cfg(feature = "zeroize")]
+        expected.zeroize();
+
+        Ok(bool::from(authentic))
     }
 
     /// Serialise this [Challenge] to a `pbcp://` URI for the given authority.
@@ -132,9 +157,33 @@ impl Challenge {
         self.params
     }
 
-    /// Returns the authentication tag.
-    pub const fn auth_tag(&self) -> [u8; 16] {
+    /// Returns the authentication tag, if the challenge has been
+    /// authenticated.
+    pub const fn auth_tag(&self) -> Option<[u8; 16]> {
         self.auth_tag
+    }
+
+    fn compute_auth_tag(&self, key: &[u8; 32]) -> Result<[u8; 16], PbcpError> {
+        let mut untagged = self.clone();
+        untagged.auth_tag = None;
+
+        let mut input = untagged.to_bytes()?;
+
+        let mut hasher = Hasher::new_keyed(key);
+        hasher.update(&input);
+
+        let mut reader = hasher.finalize_xof();
+        let mut auth_tag = [0u8; 16];
+        reader.fill(&mut auth_tag);
+
+        #[cfg(feature = "zeroize")]
+        {
+            input.zeroize();
+            hasher.zeroize();
+            reader.zeroize();
+        }
+
+        Ok(auth_tag)
     }
 }
 
@@ -148,11 +197,14 @@ impl TryFrom<ChallengeWire> for Challenge {
             Params::new(value.m_cost, value.t_cost, value.e_cost, value.n_cost)
                 .map_err(Self::Error::Params)?;
 
-        let auth_tag: [u8; 16] = value
-            .auth_tag
-            .clone()
-            .try_into()
-            .map_err(|_| Self::Error::AuthTag)?;
+        let auth_tag = if value.auth_tag.is_empty() {
+            None
+        } else {
+            Some(
+                <[u8; 16]>::try_from(value.auth_tag.as_slice())
+                    .map_err(|_| Self::Error::AuthTag)?,
+            )
+        };
 
         Ok(Challenge {
             id: value.id,
@@ -183,7 +235,11 @@ pub(crate) struct ChallengeWire {
     pub(crate) t_cost: u32,
     pub(crate) e_cost: u32,
     pub(crate) n_cost: u32,
-    #[serde(with = "b64url_vec")]
+    #[serde(
+        default,
+        skip_serializing_if = "Vec::is_empty",
+        with = "b64url_vec"
+    )]
     pub(crate) auth_tag: Vec<u8>,
 }
 
@@ -200,12 +256,14 @@ impl From<&Challenge> for ChallengeWire {
             t_cost: value.params.t_cost(),
             e_cost: value.params.e_cost(),
             n_cost: value.params.n_cost(),
-            auth_tag: value.auth_tag.to_vec(),
+            auth_tag: value
+                .auth_tag
+                .map(|tag| tag.to_vec())
+                .unwrap_or_default(),
         }
     }
 }
 
-/*
 #[cfg(test)]
 mod tests {
     use base64::Engine;
@@ -215,18 +273,13 @@ mod tests {
 
     type Error = PbcpError;
 
+    const KEY: [u8; 32] = [0u8; 32];
     const TIME: u64 = 1786558105;
     const TTL: u64 = 300;
     const NONCE: &[u8] = b"This is a challenge nonce";
 
     fn challenge(id: Ulid, params: Params) -> Challenge {
-        Challenge::new(
-            id,
-            TIME + 300,
-            b"This is a challenge nonce",
-            params,
-            [0u8; 16],
-        )
+        Challenge::new(id, TIME + 300, b"This is a challenge nonce", params)
     }
 
     fn claims() -> Claims {
@@ -265,23 +318,71 @@ mod tests {
     }
 
     #[test]
-    fn with_required_claims_rejects_invalid_names() {
-        for names in [vec![""], vec!["", "a,b"]] {
-            let result = challenge(Ulid::generate(), Params::default())
-                .with_required_claims(names);
-            assert!(matches!(result.err(), Some(Error::ClaimName)));
-        }
-    }
-
-    #[test]
     fn required_claims_satisfied_by_claims() {
         let challenge = challenge(Ulid::generate(), Params::default())
-            .with_required_claims(["iss", "sub", "aud", "iat", "exp"])
-            .expect("valid claim names");
+            .with_required_claims(["iss", "sub", "aud", "iat", "exp"]);
         let claims = claims();
 
         let satisfied = challenge.is_satisfied_by(&claims);
         assert!(satisfied);
+    }
+
+    #[test]
+    fn required_claims_unsatisfied_by_missing_claim() {
+        let challenge = challenge(Ulid::generate(), Params::default())
+            .with_required_claims(["iss", "nbf"]);
+        let claims = claims();
+
+        let satisfied = challenge.is_satisfied_by(&claims);
+        assert!(!satisfied);
+    }
+
+    #[test]
+    fn authenticate_produces_authentic_challenge() {
+        let challenge = challenge(Ulid::generate(), Params::default())
+            .authenticate(&KEY)
+            .expect("valid Challenge authenticates");
+
+        let authentic = challenge
+            .is_authentic(&KEY)
+            .expect("valid Challenge can be checked for authenticity");
+        assert!(challenge.auth_tag().is_some());
+        assert!(authentic);
+    }
+
+    #[test]
+    fn is_authentic_rejects_missing_tag() {
+        let unauthenticated = challenge(Ulid::generate(), Params::default());
+
+        let missing_tag = unauthenticated
+            .is_authentic(&KEY)
+            .expect("valid Challenge serialises to CBOR bytes");
+        assert!(!missing_tag);
+    }
+
+    #[test]
+    fn is_authentic_rejects_wrong_key() {
+        let authenticated = challenge(Ulid::generate(), Params::default())
+            .authenticate(&KEY)
+            .expect("valid Challenge authenticates");
+
+        let wrong_key = authenticated
+            .is_authentic(&[1u8; 32])
+            .expect("valid Challenge serialises to CBOR bytes");
+        assert!(!wrong_key);
+    }
+
+    #[test]
+    fn is_authentic_rejects_modified_challenge() {
+        let modified = challenge(Ulid::generate(), Params::default())
+            .authenticate(&KEY)
+            .expect("valid Challenge authenticates")
+            .with_required_claims(["iss"]);
+
+        let authentic = modified
+            .is_authentic(&KEY)
+            .expect("valid Challenge serialises to CBOR bytes");
+        assert!(!authentic);
     }
 
     #[test]
@@ -293,7 +394,8 @@ mod tests {
         for params in [default_params, custom_params] {
             let original = challenge(Ulid::generate(), params)
                 .with_required_claims(["iss", "sub", "aud", "iat", "exp"])
-                .expect("valid claim names");
+                .authenticate(&KEY)
+                .expect("valid Challenge authenticates");
             let auth = Authority::from_static("example.com:3000");
             let uri = original
                 .to_uri(auth)
@@ -301,7 +403,7 @@ mod tests {
             assert!(
                 uri.query()
                     .expect("URI has query")
-                    .contains("claims=iss%2Csub%2Caud%2Ciat%2Cexp")
+                    .contains("required_claims=aud%2Cexp%2Ciat%2Ciss%2Csub")
             );
 
             let reconstructed = Challenge::from_uri(&uri)
@@ -337,7 +439,10 @@ mod tests {
     fn cbor_bytes_round_trip() {
         let params = Params::new(8, 2, 2, 12).expect("valid parameters");
 
-        let original = challenge(Ulid::generate(), params);
+        let original = challenge(Ulid::generate(), params)
+            .with_required_claims(["iss", "sub", "aud", "iat", "exp"])
+            .authenticate(&KEY)
+            .expect("valid Challenge authenticates");
         let bytes = original
             .to_bytes()
             .expect("valid Challenge serialises to CBOR bytes");
@@ -351,13 +456,16 @@ mod tests {
     fn accessors_return_their_own_field() {
         let id = Ulid::generate();
         let params = Params::default();
-        let challenge = challenge(id, params);
+        let challenge = challenge(id, params).with_required_claims(["iss"]);
 
         assert_eq!(challenge.id(), id);
         assert_eq!(challenge.expires_at(), TIME + TTL);
         assert_eq!(challenge.nonce(), &NONCE.to_vec());
+        assert_eq!(
+            challenge.required_claims(),
+            &BTreeSet::from(["iss".to_owned()])
+        );
         assert_eq!(challenge.params(), params);
-        assert_eq!(challenge.auth_tag(), [0u8; 16]);
+        assert_eq!(challenge.auth_tag(), None);
     }
 }
-*/

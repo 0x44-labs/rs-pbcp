@@ -1,10 +1,12 @@
+use std::collections::BTreeSet;
+
 use num_traits::{FromBytes, ToBytes};
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 #[cfg(feature = "zeroize")]
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-use crate::common::{Claims, Counter, Wire, b64url_vec};
+use crate::common::{Claims, Counter, Wire, b64url_vec, claim_names};
 use crate::errors::PbcpError;
 use crate::verifier::{Challenge, ChallengeWire};
 
@@ -75,7 +77,7 @@ impl TryFrom<ProofWire> for Proof {
             id: value.id,
             expires_at: value.expires_at,
             nonce: value.challenge.clone(),
-            claims: value.requested.clone(),
+            required_claims: value.required_claims.clone(),
             m_cost: value.m_cost,
             t_cost: value.t_cost,
             e_cost: value.e_cost,
@@ -131,15 +133,23 @@ pub(crate) struct ProofWire {
     pub(crate) claims: Vec<u8>,
     #[serde(with = "b64url_vec")]
     pub(crate) challenge: Vec<u8>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) requested: Option<String>,
+    #[serde(
+        default,
+        skip_serializing_if = "BTreeSet::is_empty",
+        with = "claim_names"
+    )]
+    pub(crate) required_claims: BTreeSet<String>,
     #[serde(with = "b64url_vec")]
     pub(crate) nonce: Vec<u8>,
     pub(crate) m_cost: u32,
     pub(crate) t_cost: u32,
     pub(crate) e_cost: u32,
     pub(crate) n_cost: u32,
-    #[serde(with = "b64url_vec")]
+    #[serde(
+        default,
+        skip_serializing_if = "Vec::is_empty",
+        with = "b64url_vec"
+    )]
     pub(crate) auth_tag: Vec<u8>,
 }
 
@@ -162,7 +172,7 @@ impl TryFrom<&Proof> for ProofWire {
             id: challenge_wire.id,
             expires_at: challenge_wire.expires_at,
             challenge: challenge_wire.nonce.to_vec(),
-            requested: challenge_wire.claims,
+            required_claims: challenge_wire.required_claims,
             claims,
             nonce,
             m_cost: challenge_wire.m_cost,
@@ -206,7 +216,6 @@ mod tests {
             unix_now() + 300,
             b"This is a challenge nonce",
             Params::new(8, 2, 2, 12).expect("valid parameters"),
-            [0u8; 16],
         )
     }
 

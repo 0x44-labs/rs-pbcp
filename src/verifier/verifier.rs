@@ -1,5 +1,3 @@
-use blake3::Hasher;
-use subtle::ConstantTimeEq;
 use traversev::{Params, TraverseV};
 use ulid::Ulid;
 #[cfg(feature = "zeroize")]
@@ -37,7 +35,11 @@ impl Verifier {
     }
 
     /// Issue a [Challenge] over the given nonce.
-    pub fn issue(&self, nonce: &[u8]) -> Result<Challenge, PbcpError> {
+    pub fn issue(
+        &self,
+        nonce: &[u8],
+        claims: Option<&[&str]>,
+    ) -> Result<Challenge, PbcpError> {
         if nonce.len() > 64 {
             return Err(PbcpError::ChallengeNonce);
         }
@@ -45,15 +47,17 @@ impl Verifier {
         let id = Ulid::generate();
         let expires_at = unix_now().saturating_add(self.ttl);
 
-        let tag = auth_tag(&self.key, id, expires_at, nonce, self.params);
-        Ok(Challenge::new(id, expires_at, nonce, self.params, tag))
+        Challenge::new(id, expires_at, nonce, self.params)
+            .with_required_claims(claims.unwrap_or_default().iter().copied())
+            .authenticate(&self.key)
     }
 
     /// Verify a [Proof] against this verifier's challenge, returning
     /// whether its nonce is a valid proof over its claims.
     ///
     /// Returns an error if the proof belongs to a different challenge, the
-    /// challenge has expired, or the challenge is already recorded in `store`.
+    /// challenge has expired, the proof lacks a required claim, or the
+    /// challenge is already recorded in `store`.
     pub fn verify(
         &self,
         proof: &Proof,
@@ -61,19 +65,7 @@ impl Verifier {
     ) -> Result<bool, PbcpError> {
         let challenge = proof.challenge();
 
-        let mut expected = auth_tag(
-            &self.key,
-            challenge.id(),
-            challenge.expires_at(),
-            challenge.nonce(),
-            challenge.params(),
-        );
-        let tampered = expected.ct_ne(&challenge.auth_tag());
-
-        #[cfg(feature = "zeroize")]
-        expected.zeroize();
-
-        if bool::from(tampered) {
+        if !challenge.is_authentic(&self.key)? {
             return Err(PbcpError::WrongChallenge);
         }
 
@@ -89,6 +81,10 @@ impl Verifier {
         if time > challenge.expires_at() || unix_now() > challenge.expires_at()
         {
             return Err(PbcpError::Expired);
+        }
+
+        if !challenge.is_satisfied_by(proof.claims()) {
+            return Err(PbcpError::MissingClaims);
         }
 
         let mut input = proof.claims().to_bytes()?;
@@ -168,40 +164,6 @@ impl Drop for Verifier {
 #[cfg(feature = "zeroize")]
 impl ZeroizeOnDrop for Verifier {}
 
-fn auth_tag(
-    key: &[u8; 32],
-    id: Ulid,
-    expires_at: u64,
-    nonce: &[u8],
-    params: Params,
-) -> [u8; 16] {
-    let mut hasher = Hasher::new_keyed(key);
-
-    hasher.update(&id.to_bytes());
-    hasher.update(&expires_at.to_le_bytes());
-    for cost in [
-        params.m_cost(),
-        params.t_cost(),
-        params.e_cost(),
-        params.n_cost(),
-    ] {
-        hasher.update(&cost.to_le_bytes());
-    }
-    hasher.update(nonce);
-
-    let mut reader = hasher.finalize_xof();
-    let mut tag = [0u8; 16];
-    reader.fill(&mut tag);
-
-    #[cfg(feature = "zeroize")]
-    {
-        hasher.zeroize();
-        reader.zeroize();
-    }
-
-    tag
-}
-
 #[cfg(test)]
 mod tests {
     use crate::common::{Claims, Counter};
@@ -254,7 +216,9 @@ mod tests {
         let verifier = Verifier::new(CONTEXT, &KEY, TTL, params());
 
         let before = unix_now() + TTL;
-        let challenge = verifier.issue(NONCE).expect("nonce below 64 bytes");
+        let challenge = verifier
+            .issue(NONCE, Some(&["iss", "sub", "aud", "iat", "exp"]))
+            .expect("nonce below 64 bytes");
         let after = unix_now() + TTL;
 
         assert!((before..=after).contains(&challenge.expires_at()));
@@ -265,7 +229,9 @@ mod tests {
         let verifier = Verifier::new(CONTEXT, &KEY, TTL, params());
         let claims = claims();
 
-        let challenge = verifier.issue(NONCE).expect("nonce below 64 bytes");
+        let challenge = verifier
+            .issue(NONCE, Some(&["iss", "sub", "aud", "iat", "exp"]))
+            .expect("nonce below 64 bytes");
         let nonce = nonce(&challenge, &claims);
         let proof = Proof::new(&challenge, &claims, nonce);
 
@@ -279,13 +245,8 @@ mod tests {
         let verifier = Verifier::new(CONTEXT, &KEY, TTL, params);
 
         // Challenge not issued by this Verifier
-        let challenge = Challenge::new(
-            Ulid::generate(),
-            unix_now() + TTL,
-            NONCE,
-            params,
-            [0u8; 16],
-        );
+        let challenge =
+            Challenge::new(Ulid::generate(), unix_now() + TTL, NONCE, params);
         let proof = Proof::new(&challenge, &claims(), counter_at(unix_now()));
 
         let result = verifier.verify(&proof, None);
@@ -299,7 +260,9 @@ mod tests {
         let store = ReplayStore::new();
 
         // The verifier's clock is within the TTL, only the nonce time rejects
-        let challenge = verifier.issue(NONCE).expect("nonce below 64 bytes");
+        let challenge = verifier
+            .issue(NONCE, Some(&["iss", "sub", "aud", "iat", "exp"]))
+            .expect("nonce below 64 bytes");
         let nonce = counter_at(challenge.expires_at() + 1);
         let proof = Proof::new(&challenge, &claims(), nonce);
         let result = verifier.verify(&proof, Some(&store));
@@ -308,8 +271,9 @@ mod tests {
         // The nonce time is within the TTL, only the verifier's clock rejects
         let id = Ulid::generate();
         let expires_at = unix_now() - 1;
-        let tag = auth_tag(&KEY, id, expires_at, NONCE, params);
-        let challenge = Challenge::new(id, expires_at, NONCE, params, tag);
+        let challenge = Challenge::new(id, expires_at, NONCE, params)
+            .authenticate(&KEY)
+            .expect("valid Challenge authenticates");
         let proof = Proof::new(&challenge, &claims(), counter_at(expires_at));
         let result = verifier.verify(&proof, Some(&store));
         assert!(matches!(result.err(), Some(Error::Expired)));
@@ -320,7 +284,9 @@ mod tests {
         let verifier = Verifier::new(CONTEXT, &KEY, TTL, params());
         let store = ReplayStore::new();
 
-        let challenge = verifier.issue(NONCE).expect("nonce below 64 bytes");
+        let challenge = verifier
+            .issue(NONCE, Some(&["iss", "sub", "aud", "iat", "exp"]))
+            .expect("nonce below 64 bytes");
         let proof = Proof::new(&challenge, &claims(), counter_at(unix_now()));
 
         let original = verifier.verify(&proof, Some(&store));
@@ -335,7 +301,9 @@ mod tests {
         let verifier = Verifier::new(CONTEXT, &KEY, TTL, params());
         let store = ReplayStore::from_fn(|_, _| Err("unavailable".into()));
 
-        let challenge = verifier.issue(NONCE).expect("nonce below 64 bytes");
+        let challenge = verifier
+            .issue(NONCE, Some(&["iss", "sub", "aud", "iat", "exp"]))
+            .expect("nonce below 64 bytes");
         let proof = Proof::new(&challenge, &claims(), counter_at(unix_now()));
 
         let result = verifier.verify(&proof, Some(&store));

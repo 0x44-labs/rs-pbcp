@@ -84,7 +84,6 @@ mod tests {
             unix_now() + 300,
             b"This is a challenge nonce",
             Params::new(8, 2, 2, 12).expect("valid parameters"),
-            [0u8; 16],
         )
     }
 
@@ -107,9 +106,7 @@ mod tests {
 
     #[test]
     fn prove_rejects_missing_required_claims() {
-        let challenge = challenge()
-            .with_required_claims(["nbf"])
-            .expect("valid claim names");
+        let challenge = challenge().with_required_claims(["nbf"]);
         let prover = Prover::new(CONTEXT, &challenge);
 
         let result = prover.prove(&claims());

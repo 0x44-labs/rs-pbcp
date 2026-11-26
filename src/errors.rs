@@ -21,6 +21,9 @@ pub enum PbcpError {
     /// JSON serialisation/deserialisation failed.
     Json(serde_json::Error),
 
+    /// Required claims missing.
+    MissingClaims,
+
     /// Invalid TraverseV parameters.
     Params(traversev::TraverseVErr),
 
@@ -61,6 +64,7 @@ impl std::fmt::Display for PbcpError {
             Self::ChallengeNonce => "cannot exceed 64 bytes",
             Self::Expired => "challenge expired",
             Self::Json(e) => return core::fmt::Display::fmt(e, f),
+            Self::MissingClaims => "required claims missing",
             Self::Params(e) => return core::fmt::Display::fmt(e, f),
             Self::PathAndQuery(e) => return core::fmt::Display::fmt(e, f),
             Self::ProofNonce => "expected exactly 16 bytes",
@@ -155,6 +159,7 @@ mod tests {
             PbcpError::ChallengeNonce => "cannot exceed 64 bytes",
             PbcpError::Expired => "challenge expired",
             PbcpError::Json(e) => e.to_string().leak(),
+            PbcpError::MissingClaims => "required claims missing",
             PbcpError::Params(e) => e.to_string().leak(),
             PbcpError::PathAndQuery(e) => e.to_string().leak(),
             PbcpError::ProofNonce => "expected exactly 16 bytes",
@@ -221,6 +226,7 @@ mod tests {
             (PbcpError::ChallengeNonce, "ChallengeNonce"),
             (PbcpError::Expired, "Expired"),
             (json(), "Json"),
+            (PbcpError::MissingClaims, "MissingClaims"),
             (params(), "Params"),
             (path_and_query(), "PathAndQuery"),
             (PbcpError::ProofNonce, "ProofNonce"),
