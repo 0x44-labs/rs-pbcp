@@ -45,6 +45,9 @@ pub enum PbcpError {
     /// Challenge exceeded configured costs.
     TooCostly,
 
+    /// Challenge not authenticated.
+    Unauthenticated,
+
     /// Failed to build URI.
     UriBuilder(http::Error),
 
@@ -72,6 +75,7 @@ impl std::fmt::Display for PbcpError {
             Self::Replayed => "proof already submitted for challenge",
             Self::StoreFail(e) => return core::fmt::Display::fmt(e, f),
             Self::TooCostly => "challenge exceeded configured costs",
+            Self::Unauthenticated => "challenge not authenticated",
             Self::UriBuilder(e) => return core::fmt::Display::fmt(e, f),
             Self::UriParse => "parsed uri invalid for pbcp",
             Self::WrongChallenge => "proof submitted to wrong challenge",
@@ -167,6 +171,7 @@ mod tests {
             PbcpError::Replayed => "proof already submitted for challenge",
             PbcpError::StoreFail(e) => e.to_string().leak(),
             PbcpError::TooCostly => "challenge exceeded configured costs",
+            PbcpError::Unauthenticated => "challenge not authenticated",
             PbcpError::UriBuilder(e) => e.to_string().leak(),
             PbcpError::UriParse => "parsed uri invalid for pbcp",
             PbcpError::WrongChallenge => "proof submitted to wrong challenge",
@@ -234,6 +239,7 @@ mod tests {
             (PbcpError::Replayed, "Replayed"),
             (store_fail(), "StoreFail"),
             (PbcpError::TooCostly, "TooCostly"),
+            (PbcpError::Unauthenticated, "Unauthenticated"),
             (uri_builder(), "UriBuilder"),
             (PbcpError::UriParse, "UriParse"),
             (PbcpError::WrongChallenge, "WrongChallenge"),

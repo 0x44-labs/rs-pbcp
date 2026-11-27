@@ -88,11 +88,17 @@ impl Challenge {
     }
 
     /// Serialise this [Challenge] to a `pbcp://` URI for the given authority.
+    ///
+    /// Returns an error if the challenge has not been authenticated.
     pub fn to_uri<T>(&self, auth: T) -> Result<Uri, PbcpError>
     where
         T: TryInto<Authority>,
         <T as TryInto<Authority>>::Error: Into<http::Error>,
     {
+        if self.auth_tag.is_none() {
+            return Err(PbcpError::Unauthenticated);
+        }
+
         let wire = ChallengeWire::from(self);
 
         let p_and_q = wire.path_and_query()?;
@@ -120,10 +126,14 @@ impl Challenge {
     }
 
     /// Serialise this [Challenge] to CBOR bytes.
+    ///
+    /// Returns an error if the challenge has not been authenticated.
     pub fn to_bytes(&self) -> Result<Vec<u8>, PbcpError> {
-        let mut buf = Vec::new();
-        ciborium::into_writer(&ChallengeWire::from(self), &mut buf)?;
-        Ok(buf)
+        if self.auth_tag.is_none() {
+            return Err(PbcpError::Unauthenticated);
+        }
+
+        self.encode(true)
     }
 
     /// Parse a [Challenge] from CBOR bytes.
@@ -164,10 +174,7 @@ impl Challenge {
     }
 
     fn compute_auth_tag(&self, key: &[u8; 32]) -> Result<[u8; 16], PbcpError> {
-        let mut untagged = self.clone();
-        untagged.auth_tag = None;
-
-        let mut input = untagged.to_bytes()?;
+        let mut input = self.encode(false)?;
 
         let mut hasher = Hasher::new_keyed(key);
         hasher.update(&input);
@@ -184,6 +191,17 @@ impl Challenge {
         }
 
         Ok(auth_tag)
+    }
+
+    fn encode(&self, authenticated: bool) -> Result<Vec<u8>, PbcpError> {
+        let mut wire = ChallengeWire::from(self);
+        if !authenticated {
+            wire.auth_tag.clear();
+        }
+
+        let mut buf = Vec::new();
+        ciborium::into_writer(&wire, &mut buf)?;
+        Ok(buf)
     }
 }
 

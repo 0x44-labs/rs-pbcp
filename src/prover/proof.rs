@@ -171,6 +171,8 @@ mod tests {
 
     use super::*;
 
+    const KEY: [u8; 32] = [0u8; 32];
+
     fn challenge() -> Challenge {
         Challenge::new(
             Ulid::generate(),
@@ -178,6 +180,8 @@ mod tests {
             b"This is a challenge nonce",
             Params::new(8, 2, 2, 12).expect("valid parameters"),
         )
+        .authenticate(&KEY)
+        .expect("valid Challenge authenticates")
     }
 
     fn claims() -> Claims {
