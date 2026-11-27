@@ -127,6 +127,7 @@ impl TryFrom<&Proof> for ProofWire {
     type Error = PbcpError;
 
     fn try_from(value: &Proof) -> Result<Self, Self::Error> {
+        let challenge = value.challenge.to_bytes()?;
         let claims = value.claims.to_bytes()?;
 
         let mut nonce_bytes = value.nonce.to_le_bytes();
@@ -136,7 +137,7 @@ impl TryFrom<&Proof> for ProofWire {
         nonce_bytes.zeroize();
 
         Ok(Self {
-            challenge: value.challenge.to_bytes()?,
+            challenge,
             claims,
             nonce,
         })
